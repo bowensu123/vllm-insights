@@ -1,0 +1,10 @@
+.env
+.claude/
+data/
+__pycache__/
+*.pyc
+.venv/
+.streamlit/
+*.egg-info/
+build/
+dist/

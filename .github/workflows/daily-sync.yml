@@ -1,0 +1,105 @@
+name: Daily sync & publish
+
+on:
+  schedule:
+    - cron: "0 7 * * *"     # 07:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Full refresh (ignore last_synced_at)"
+        type: boolean
+        default: false
+
+# Needed for actions/deploy-pages
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: vllm-insights-publish
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GITHUB_TOKEN: ${{ secrets.GH_DATA_TOKEN || secrets.GITHUB_TOKEN }}
+      GITHUB_REPO: vllm-project/vllm
+      DB_PATH: ./data/insights.sqlite
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Restore SQLite cache
+        uses: actions/cache@v4
+        with:
+          path: data/insights.sqlite
+          key: vllm-insights-db-${{ github.run_id }}
+          restore-keys: |
+            vllm-insights-db-
+
+      - name: Sync
+        run: |
+          if [ "${{ inputs.full }}" = "true" ]; then
+            vllm-insights sync --all --full
+          else
+            vllm-insights sync --all
+          fi
+
+      - name: Daily markdown report
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          mkdir -p docs/reports
+          vllm-insights report --out "docs/reports/${DATE}.md" --days 7
+          cp "docs/reports/${DATE}.md" docs/reports/latest.md
+
+      - name: Build static site
+        run: vllm-insights site --docs docs
+
+      # Commit the markdown reports + index so history is browsable on the main branch.
+      # The HTML dashboard goes to Pages via artifact upload (not committed).
+      - name: Commit reports
+        run: |
+          git config user.name "vllm-insights-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add docs/reports/ docs/weekly/ 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m "report: daily activity $(date -u +%Y-%m-%d)"
+            git push
+          else
+            echo "No report changes to commit."
+          fi
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: Upload SQLite as run artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: insights-db-${{ github.run_id }}
+          path: data/insights.sqlite
+          retention-days: 14
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

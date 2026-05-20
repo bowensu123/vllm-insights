@@ -1,0 +1,25 @@
+[project]
+name = "vllm-insights"
+version = "0.1.0"
+description = "GitHub insights tool for vllm-project/vllm: releases, PRs, commits, tech trends"
+requires-python = ">=3.10"
+dependencies = [
+    "httpx>=0.27",
+    "pandas>=2.2",
+    "python-dotenv>=1.0",
+    "streamlit>=1.36",
+    "plotly>=5.22",
+    "rich>=13.7",
+    "typer>=0.12",
+    "anthropic>=0.39",
+]
+
+[project.scripts]
+vllm-insights = "vllm_insights.cli:app"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
