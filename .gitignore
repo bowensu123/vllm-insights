@@ -12,8 +12,6 @@ docs/reports/*.html
 docs/reports/index.md
 docs/weekly/*.html
 docs/weekly/index.md
-docs/daily/*.html
-docs/daily/index.md
 *.egg-info/
 build/
 dist/

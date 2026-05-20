@@ -59,24 +59,14 @@ jobs:
             vllm-insights sync --all
           fi
 
-      - name: Daily markdown report
-        run: |
-          DATE=$(date -u +%Y-%m-%d)
-          mkdir -p docs/reports
-          vllm-insights report --out "docs/reports/${DATE}.md" --days 7
-          cp "docs/reports/${DATE}.md" docs/reports/latest.md
-
-      - name: Daily LLM digest (GitHub Models)
+      - name: Daily report (stats + LLM digest)
         env:
           LLM_BACKEND: github
         run: |
           DATE=$(date -u +%Y-%m-%d)
-          mkdir -p docs/daily
-          vllm-insights summarize --out "docs/daily/${DATE}.md" --days 1 || \
-            echo "Daily digest failed (rate limit or model availability); continuing"
-          if [ -f "docs/daily/${DATE}.md" ]; then
-            cp "docs/daily/${DATE}.md" docs/daily/latest.md
-          fi
+          mkdir -p docs/reports
+          vllm-insights report --out "docs/reports/${DATE}.md" --days 7 --llm --llm-days 1
+          cp "docs/reports/${DATE}.md" docs/reports/latest.md
 
       - name: Build static site
         run: vllm-insights site --docs docs
@@ -87,7 +77,7 @@ jobs:
         run: |
           git config user.name "vllm-insights-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add docs/reports/*.md docs/weekly/*.md docs/daily/*.md 2>/dev/null || true
+          git add docs/reports/*.md docs/weekly/*.md 2>/dev/null || true
           if ! git diff --cached --quiet; then
             git commit -m "report: daily activity $(date -u +%Y-%m-%d)"
             git push

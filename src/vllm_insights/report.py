@@ -9,7 +9,15 @@ from .analyzer.queries import (
 )
 
 
-def generate_daily_report(db_path: Path, days: int = 7) -> str:
+def generate_daily_report(
+    db_path: Path,
+    days: int = 7,
+    repo: str = "vllm-project/vllm",
+    include_llm: bool = False,
+    llm_days: int = 1,
+    llm_backend: str | None = None,
+    llm_model: str | None = None,
+) -> str:
     now = datetime.now(timezone.utc)
     since = pd.Timestamp(now - timedelta(days=days))   # already tz-aware
 
@@ -18,6 +26,18 @@ def generate_daily_report(db_path: Path, days: int = 7) -> str:
     cm = commits_df(db_path)
 
     lines: list[str] = [f"# vLLM activity report — {now:%Y-%m-%d}", ""]
+
+    # ----- LLM digest (optional, at top) -----
+    if include_llm:
+        from .summarize import summarize_window
+        try:
+            digest = summarize_window(
+                db_path, days=llm_days, model=llm_model,
+                backend=llm_backend, repo=repo, include_header=False,
+            )
+            lines += ["## LLM digest", "", digest.strip(), ""]
+        except Exception as e:
+            lines += ["## LLM digest", "", f"_Skipped: {type(e).__name__}: {e}_", ""]
 
     # ----- Summary cards -----
     lines += ["## Summary", ""]

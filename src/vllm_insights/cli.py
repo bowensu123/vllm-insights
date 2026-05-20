@@ -66,13 +66,21 @@ def link():
 
 @app.command()
 def report(
-    out: Path = typer.Option(Path("reports/daily.md"), "--out", help="Output markdown path"),
-    days: int = typer.Option(7, "--days", help="Activity window in days"),
+    out: Path = typer.Option(Path("docs/reports/latest.md"), "--out", help="Output markdown path"),
+    days: int = typer.Option(7, "--days", help="Stats window in days"),
+    llm: bool = typer.Option(False, "--llm/--no-llm", help="Prepend an LLM digest section"),
+    llm_days: int = typer.Option(1, "--llm-days", help="LLM digest window (default: 1 day)"),
+    backend: str = typer.Option(None, "--backend", help="github | anthropic"),
+    model: str = typer.Option(None, "--model"),
 ):
-    """Generate a markdown activity report."""
+    """Generate a daily markdown activity report (optionally with LLM digest)."""
     s = load_settings()
     init_db(s.db_path)
-    text = generate_daily_report(s.db_path, days=days)
+    text = generate_daily_report(
+        s.db_path, days=days, repo=s.repo,
+        include_llm=llm, llm_days=llm_days,
+        llm_backend=backend, llm_model=model,
+    )
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
     console.print(f"[green]Report written:[/] {out}")
@@ -120,8 +128,7 @@ def site(
     s = load_settings()
     init_db(s.db_path)
     idx = build_index(s.db_path, docs, repo=s.repo)
-    build_report_index(docs / "daily", "Daily LLM digests")
-    build_report_index(docs / "reports", "Daily activity reports")
+    build_report_index(docs / "reports", "Daily reports (stats + LLM digest)")
     build_report_index(docs / "weekly", "Weekly LLM summaries")
     console.print(f"[green]Site built:[/] {idx}")
 

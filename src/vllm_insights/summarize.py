@@ -8,6 +8,7 @@ Pick via LLM_BACKEND env var or --backend flag. Defaults to "github" if GITHUB_T
 is present, else "anthropic".
 """
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from textwrap import dedent
@@ -15,6 +16,21 @@ from textwrap import dedent
 import httpx
 
 from .db import connect
+
+
+# Match #1234 only when NOT already inside a markdown link, e.g. avoid touching
+# the "1234" inside "[#1234](url)".  We require the preceding char to not be "[".
+_PR_RE = re.compile(r"(?<![\[\w])#(\d{2,6})\b")
+# Match vX.Y[.Z][.suffix] not already inside a link.
+_TAG_RE = re.compile(r"(?<![\[/\w])(v\d+\.\d+(?:\.\d+)?(?:\.[a-zA-Z0-9]+)?)\b")
+
+
+def link_refs(text: str, repo: str) -> str:
+    """Hyperlink #1234 -> PR URL and vX.Y.Z -> release URL in markdown text."""
+    base = f"https://github.com/{repo}"
+    text = _PR_RE.sub(rf"[#\1]({base}/pull/\1)", text)
+    text = _TAG_RE.sub(rf"[\1]({base}/releases/tag/\1)", text)
+    return text
 
 
 WEEKLY_SYSTEM = dedent("""
@@ -157,6 +173,8 @@ def summarize_window(
     days: int = 7,
     model: str | None = None,
     backend: str | None = None,
+    repo: str = "vllm-project/vllm",
+    include_header: bool = True,
 ) -> str:
     backend = _detect_backend(backend)
     model = model or os.getenv("LLM_MODEL") or DEFAULT_MODELS[backend]
@@ -172,6 +190,11 @@ def summarize_window(
     else:
         raise ValueError(f"Unknown backend: {backend}")
 
+    text = link_refs(text.strip(), repo)
+
+    if not include_header:
+        return text + "\n"
+
     label = "daily" if days <= 1 else f"{days}-day"
     header = (
         f"# vLLM {label} digest — {datetime.now(timezone.utc):%Y-%m-%d}\n\n"
@@ -179,7 +202,7 @@ def summarize_window(
         f"{len(payload['releases'])} release(s), {len(payload['prs'])} merged PR(s) · "
         f"backend: `{backend}` · model: `{model}`_\n\n"
     )
-    return header + text.strip() + "\n"
+    return header + text + "\n"
 
 
 # Backward-compat alias used by existing CLI/workflow imports.
