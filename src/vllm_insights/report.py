@@ -11,7 +11,7 @@ from .analyzer.queries import (
 
 def generate_daily_report(db_path: Path, days: int = 7) -> str:
     now = datetime.now(timezone.utc)
-    since = pd.Timestamp(now - timedelta(days=days), tz="UTC")
+    since = pd.Timestamp(now - timedelta(days=days))   # already tz-aware
 
     rel = releases_df(db_path)
     prs = prs_df(db_path)

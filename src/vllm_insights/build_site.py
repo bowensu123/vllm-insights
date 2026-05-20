@@ -94,7 +94,7 @@ def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
         fig = px.bar(vol, x="month", y="count", color="state", title="PRs created per month")
         charts.append(_fig_html(fig, "chart-volume"))
 
-        recent = prs[prs["created_at"] >= pd.Timestamp(now, tz="UTC") - pd.Timedelta(days=180)].copy()
+        recent = prs[prs["created_at"] >= pd.Timestamp(now) - pd.Timedelta(days=180)].copy()
         if not recent.empty:
             recent["tech"] = recent["title"].apply(classify_pr_by_title)
             dist = (recent.groupby("tech").size().reset_index(name="count")

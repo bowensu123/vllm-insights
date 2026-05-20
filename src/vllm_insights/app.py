@@ -99,7 +99,10 @@ with tab_tech:
         st.info("No PR data.")
     else:
         since = st.date_input("Since", value=pd.Timestamp.utcnow().normalize() - pd.Timedelta(days=180))
-        d = df[df["created_at"] >= pd.Timestamp(since, tz="UTC")]
+        ts = pd.Timestamp(since)
+        if ts.tzinfo is None:
+            ts = ts.tz_localize("UTC")
+        d = df[df["created_at"] >= ts]
         dist = d.groupby("tech").size().reset_index(name="count").sort_values("count", ascending=False)
         st.plotly_chart(
             px.bar(dist, x="tech", y="count", title=f"PR distribution by tech area (since {since})"),

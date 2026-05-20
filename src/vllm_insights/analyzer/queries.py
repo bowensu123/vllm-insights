@@ -95,7 +95,10 @@ def pr_tech_distribution(db_path: Path, since: str | None = None) -> pd.DataFram
     if df.empty:
         return df
     if since:
-        df = df[df["created_at"] >= pd.Timestamp(since, tz="UTC")]
+        ts = pd.Timestamp(since)
+        if ts.tzinfo is None:
+            ts = ts.tz_localize("UTC")
+        df = df[df["created_at"] >= ts]
     df["tech"] = df["title"].apply(classify_pr_by_title)
     return df
 
