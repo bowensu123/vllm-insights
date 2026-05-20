@@ -50,6 +50,17 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #ddd3;
   margin: 1rem 0 1.5rem;
   border-radius: 0 6px 6px 0;
 }
+.release-summary > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: .85rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: .5rem 0;
+  list-style: revert;
+  opacity: .8;
+}
+.release-summary > summary:hover { opacity: 1; }
 .release-summary h3 { margin-top: 1rem; font-size: 1rem;
                       text-transform: uppercase; letter-spacing: .04em;
                       opacity: .85; border-bottom: 1px dashed #6664;
@@ -166,7 +177,12 @@ def _render_latest_release(db_path: Path, repo: str) -> str:
             f"{escape(summary_row['backend'] or '?')} / "
             f"{escape(summary_row['model'] or '?')}</span>"
         )
-        summary_html = f"<div class='release-summary'>{rendered}{meta}</div>"
+        summary_html = (
+            "<details open class='release-summary'>"
+            "<summary>LLM overview</summary>"
+            f"{rendered}{meta}"
+            "</details>"
+        )
 
     return f"""
 <h2>Latest release</h2>
