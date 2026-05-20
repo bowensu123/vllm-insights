@@ -55,7 +55,7 @@ WEEKLY_SYSTEM = dedent("""
 
 
 # Bump when RELEASE_SYSTEM changes meaningfully — invalidates cached summaries.
-RELEASE_PROMPT_VERSION = "v2"
+RELEASE_PROMPT_VERSION = "v3"
 
 
 RELEASE_SYSTEM = dedent("""
@@ -66,22 +66,29 @@ RELEASE_SYSTEM = dedent("""
     so DO NOT list individual added models here. You may mention "expanded model coverage"
     in the overview at a high level, but no per-model bullets.
 
-    Produce:
-      **Overview** (2-3 sentences): what this release is about, who should care,
-      any headline change. May briefly note "new model support" generally without listing models.
+    Output GitHub-flavored markdown with exactly these three level-3 headings, in this order
+    (omit "Upgrade notes" if there is nothing material):
 
-      **Key changes**: 4-7 bullets covering NON-model topics only, grouped under inline-bold
-      labels: **Performance:**, **Hardware:**, **Quantization:**, **API & serving:**,
-      **Engine/scheduler:**. Each bullet ≤ 1 line, cite PR refs `#1234` inline.
+    ### Overview
+    Two to three sentences. Plain prose, no bullets. State what this release is about,
+    who should care, and any headline change. You may briefly note "expanded model coverage"
+    without naming specific models.
 
-      **Upgrade notes** (1-3 bullets, omit if empty): deprecations, breaking changes,
-      behavior shifts users must watch out for.
+    ### Key changes
+    Four to seven bullets covering NON-model topics only. Prefix each bullet with an inline-bold
+    label, one of: **Performance:**, **Hardware:**, **Quantization:**, **API & serving:**,
+    **Engine/scheduler:**. Each bullet ≤ 1 line. Cite PR refs `#1234` inline.
+
+    ### Upgrade notes
+    One to three bullets covering deprecations, breaking changes, or behavior shifts users
+    must watch out for. Omit this entire section (heading and all) if there are none.
 
     Rules:
     - Don't fabricate PRs or features. Stick to what's in the notes.
     - Skip pure docs/CI churn unless headline-worthy.
     - Do NOT include "Model support" or "New models" bullets — those are handled separately.
-    - Output GitHub-flavored markdown. Do NOT include the release title (caller adds it).
+    - Do NOT include the release title or any H1/H2 heading (caller adds those).
+    - No preamble, no closing remarks — start directly with `### Overview`.
 """).strip()
 
 

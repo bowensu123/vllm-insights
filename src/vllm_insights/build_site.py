@@ -32,6 +32,7 @@ body { font-family: -apple-system, Segoe UI, Helvetica, Arial, sans-serif;
 header { border-bottom: 1px solid #ddd3; padding-bottom: 1rem; margin-bottom: 1.5rem; }
 h1 { margin: 0 0 .3rem; font-size: 1.6rem; }
 h2 { margin-top: 2rem; font-size: 1.25rem; border-bottom: 1px solid #ddd3; padding-bottom: .3rem; }
+h3 { margin-top: 1.2rem; margin-bottom: .4rem; font-size: 1.05rem; }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
          gap: .75rem; margin: 1rem 0; }
 .card { padding: .75rem 1rem; border: 1px solid #ddd5; border-radius: 8px; }
@@ -41,6 +42,24 @@ nav a { margin-right: 1rem; }
 footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #ddd3;
          opacity: .65; font-size: .85rem; }
 .chart { margin: 1rem 0; }
+
+.release-summary {
+  border-left: 3px solid #6cf;
+  background: rgba(102,204,255,.08);
+  padding: .25rem 1.2rem 1rem;
+  margin: 1rem 0 1.5rem;
+  border-radius: 0 6px 6px 0;
+}
+.release-summary h3 { margin-top: 1rem; font-size: 1rem;
+                      text-transform: uppercase; letter-spacing: .04em;
+                      opacity: .85; border-bottom: 1px dashed #6664;
+                      padding-bottom: .25rem; }
+.release-summary h3:first-child { margin-top: .8rem; }
+.release-summary p { margin: .4rem 0; }
+.release-summary ul { padding-left: 1.4rem; margin: .4rem 0; }
+.release-summary li { margin: .25rem 0; }
+.release-summary .meta { display: block; margin-top: 1rem;
+                         font-size: .75rem; opacity: .55; }
 """
 
 
@@ -142,8 +161,12 @@ def _render_latest_release(db_path: Path, repo: str) -> str:
     summary_html = ""
     if summary_row:
         rendered = md.markdown(summary_row["summary"], extensions=["tables", "fenced_code"])
-        model_note = f"<em style='opacity:.6;font-size:.8rem'>LLM summary · {escape(summary_row['backend'] or '?')} / {escape(summary_row['model'] or '?')}</em>"
-        summary_html = f"<div style='border-left:3px solid #6cf6;padding:.5rem 1rem;margin:1rem 0;background:#6cf1'>{rendered}{model_note}</div>"
+        meta = (
+            f"<span class='meta'>LLM summary · "
+            f"{escape(summary_row['backend'] or '?')} / "
+            f"{escape(summary_row['model'] or '?')}</span>"
+        )
+        summary_html = f"<div class='release-summary'>{rendered}{meta}</div>"
 
     return f"""
 <h2>Latest release</h2>
