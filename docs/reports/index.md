@@ -1,3 +1,5 @@
 # Daily activity reports
 
-- [test](test.md)
+- [Latest](latest.md)
+
+- [2026-05-20](2026-05-20.md)
