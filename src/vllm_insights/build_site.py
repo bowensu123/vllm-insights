@@ -145,19 +145,56 @@ cached locally to SQLite, refreshed daily via GitHub Actions.</footer>
     return out
 
 
+def _wrap_html(title: str, body_html: str, back_href: str = "../") -> str:
+    return f"""<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{escape(title)}</title>
+<style>{PAGE_CSS}
+article {{ font-size: .95rem; }}
+article table {{ border-collapse: collapse; margin: 1rem 0; }}
+article th, article td {{ border: 1px solid #ddd5; padding: .35rem .6rem; }}
+article code {{ background: #8881; padding: 0 .25rem; border-radius: 3px; }}
+article ul {{ padding-left: 1.2rem; }}
+</style>
+</head><body>
+<header><nav><a href="{back_href}">&larr; Home</a></nav><h1>{escape(title)}</h1></header>
+<article>{body_html}</article>
+</body></html>"""
+
+
 def build_report_index(reports_dir: Path, title: str) -> Path | None:
-    """Walk reports_dir/*.md and write an index.md sorted newest first."""
+    """Render every *.md under reports_dir to a sibling *.html, plus an index.html."""
+    import markdown as md  # local import keeps optional-ish
+
     reports_dir.mkdir(parents=True, exist_ok=True)
-    files = sorted((p for p in reports_dir.glob("*.md")
-                    if p.name not in ("index.md", "latest.md")),
-                   reverse=True)
-    if not files and not (reports_dir / "latest.md").exists():
+    md_files = sorted(
+        (p for p in reports_dir.glob("*.md") if p.name != "index.md"),
+        reverse=True,
+    )
+    if not md_files:
         return None
-    lines = [f"# {title}", ""]
+
+    # Render each .md to .html (same stem)
+    for f in md_files:
+        html_body = md.markdown(
+            f.read_text(encoding="utf-8"),
+            extensions=["tables", "fenced_code"],
+        )
+        (reports_dir / f"{f.stem}.html").write_text(
+            _wrap_html(f.stem, html_body), encoding="utf-8"
+        )
+
+    # Build index.html
+    items = []
     if (reports_dir / "latest.md").exists():
-        lines += ["- [Latest](latest.md)", ""]
-    for f in files:
-        lines.append(f"- [{f.stem}]({f.name})")
-    out = reports_dir / "index.md"
-    out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        items.append('<li><a href="latest.html"><strong>Latest</strong></a></li>')
+    for f in md_files:
+        if f.stem == "latest":
+            continue
+        items.append(f'<li><a href="{escape(f.stem)}.html">{escape(f.stem)}</a></li>')
+
+    index_html = _wrap_html(title, "<ul>" + "\n".join(items) + "</ul>")
+    out = reports_dir / "index.html"
+    out.write_text(index_html, encoding="utf-8")
     return out

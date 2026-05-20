@@ -74,7 +74,7 @@ jobs:
         run: |
           git config user.name "vllm-insights-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add docs/reports/ docs/weekly/ 2>/dev/null || true
+          git add docs/reports/*.md docs/weekly/*.md 2>/dev/null || true
           if ! git diff --cached --quiet; then
             git commit -m "report: daily activity $(date -u +%Y-%m-%d)"
             git push
