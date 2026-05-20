@@ -8,6 +8,7 @@ Generates:
 Daily / weekly markdown files are expected to already live under docs/reports/ and
 docs/weekly/ (produced by the report / summarize commands when --out points there).
 """
+import re
 from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
@@ -19,6 +20,9 @@ import plotly.io as pio
 from .analyzer.queries import (
     releases_df, prs_df, commits_df, classify_pr_by_title, merge_time_stats,
 )
+from .db import connect
+from .models import classify as classify_model, hf_org_url, hf_search_url, looks_like_model_section
+from .summarize import link_refs
 
 
 PAGE_CSS = """
@@ -49,6 +53,98 @@ def _card(value: str, label: str) -> str:
     return f'<div class="card"><div class="v">{escape(value)}</div><div class="l">{escape(label)}</div></div>'
 
 
+def _render_latest_release(db_path: Path, repo: str) -> str:
+    """Section showing the latest stable release + supported models grouped by vendor."""
+    with connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT tag, name, published_at, url FROM releases "
+            "WHERE is_prerelease = 0 ORDER BY published_at DESC LIMIT 1"
+        ).fetchone()
+        if not row:
+            return ""
+        latest = dict(row)
+        sections = conn.execute(
+            "SELECT section, item FROM release_sections WHERE tag = ?",
+            (latest["tag"],),
+        ).fetchall()
+
+    tag = latest["tag"]
+    rel_url = latest["url"] or f"https://github.com/{repo}/releases/tag/{tag}"
+    name = latest.get("name") or tag
+
+    # Group items from model-related sections by detected vendor
+    by_vendor: dict[str, list[tuple[str, str | None]]] = {}
+    unknown_items: list[str] = []
+    for s in sections:
+        if not looks_like_model_section(s["section"]):
+            continue
+        item = s["item"]
+        cls = classify_model(item)
+        if cls:
+            vendor, org = cls
+            by_vendor.setdefault(vendor, []).append((item, org))
+        else:
+            unknown_items.append(item)
+
+    # Build vendor list HTML
+    vendor_html = ""
+    if by_vendor or unknown_items:
+        chunks = []
+        for vendor in sorted(by_vendor.keys()):
+            items = by_vendor[vendor]
+            org = items[0][1]
+            vendor_link = f'<a href="{hf_org_url(org)}" target="_blank" rel="noopener">{escape(vendor)}</a>' if org else escape(vendor)
+            li = []
+            for item, _org in items:
+                # Hyperlink PR refs inside the item text (uses repo, not HF)
+                item_html = link_refs(item, repo)
+                # Convert markdown [text](url) to <a> for inline rendering
+                item_html = re.sub(
+                    r"\[([^\]]+)\]\(([^)]+)\)",
+                    r'<a href="\2" target="_blank" rel="noopener">\1</a>',
+                    item_html,
+                )
+                # Add an HF search link for the model name itself
+                hf_link = f' <a href="{hf_search_url(item)}" target="_blank" rel="noopener" title="Find on Hugging Face">[HF]</a>'
+                li.append(f"<li>{item_html}{hf_link}</li>")
+            chunks.append(
+                f"<details open><summary><strong>{vendor_link}</strong> "
+                f"<span style='opacity:.6'>({len(items)})</span></summary>"
+                f"<ul>{''.join(li)}</ul></details>"
+            )
+        if unknown_items:
+            li = []
+            for item in unknown_items:
+                item_html = link_refs(item, repo)
+                item_html = re.sub(
+                    r"\[([^\]]+)\]\(([^)]+)\)",
+                    r'<a href="\2" target="_blank" rel="noopener">\1</a>',
+                    item_html,
+                )
+                hf_link = f' <a href="{hf_search_url(item)}" target="_blank" rel="noopener">[HF]</a>'
+                li.append(f"<li>{item_html}{hf_link}</li>")
+            chunks.append(
+                f"<details><summary><strong>Other / unclassified</strong> "
+                f"<span style='opacity:.6'>({len(unknown_items)})</span></summary>"
+                f"<ul>{''.join(li)}</ul></details>"
+            )
+        vendor_html = "\n".join(chunks)
+    else:
+        vendor_html = "<p><em>No model-support section found in this release's notes.</em></p>"
+
+    published = latest["published_at"][:10] if latest.get("published_at") else "?"
+    return f"""
+<h2>Latest release</h2>
+<p>
+  <a href="{escape(rel_url)}" target="_blank" rel="noopener"><strong>{escape(tag)}</strong></a>
+  {escape("— " + name) if name and name != tag else ""}
+  <span style="opacity:.7">· published {escape(published)}</span>
+</p>
+<h3>Supported models (added or highlighted in {escape(tag)})</h3>
+{vendor_html}
+"""
+
+
 def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
     docs_dir.mkdir(parents=True, exist_ok=True)
     rel = releases_df(db_path)
@@ -70,6 +166,9 @@ def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
         cards.append(_card(f"{med_h:.1f}h" if pd.notna(med_h) else "—", "Median merge time"))
     cards.append(_card(str(len(cm)), "Commits cached"))
     cards_html = '<div class="cards">' + "".join(cards) + "</div>"
+
+    # ---- latest release + supported models ----
+    latest_html = _render_latest_release(db_path, repo)
 
     # ---- charts ----
     charts: list[str] = []
@@ -130,10 +229,10 @@ def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
   <div>Tracking <a href="{repo_url}">{escape(repo)}</a> · updated {now:%Y-%m-%d %H:%M UTC}</div>
   <nav style="margin-top:.6rem">
     <a href="reports/">All daily reports</a>
-    <a href="{repo_url}">Source repo</a>
   </nav>
 </header>
 {cards_html}
+{latest_html}
 <h2>Trends</h2>
 {charts_html}
 <footer>Generated by vllm-insights. Data from the GitHub REST API,
