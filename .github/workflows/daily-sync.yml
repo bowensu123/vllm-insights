@@ -68,6 +68,13 @@ jobs:
           vllm-insights report --out "docs/reports/${DATE}.md" --days 7 --llm --llm-days 1
           cp "docs/reports/${DATE}.md" docs/reports/latest.md
 
+      - name: Summarize latest release (LLM, cached)
+        env:
+          LLM_BACKEND: github
+        run: |
+          vllm-insights summarize-release --tag latest || \
+            echo "Release summary failed; continuing"
+
       - name: Build static site
         run: vllm-insights site --docs docs
 

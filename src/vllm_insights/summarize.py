@@ -54,6 +54,27 @@ WEEKLY_SYSTEM = dedent("""
 """).strip()
 
 
+RELEASE_SYSTEM = dedent("""
+    You are summarizing one vLLM release for engineers who want a quick overview
+    before reading the full notes. You will receive the raw release-notes markdown.
+
+    Produce:
+      **Overview** (2-3 sentences): what this release is about, who should care, any headline change.
+
+      **Key changes**: 5-9 bullets, grouped under inline-bold labels where useful
+      (e.g. **Model support:**, **Performance:**, **Hardware:**, **API:**, **Breaking:**).
+      Each bullet ≤ 1 line, cite PR refs `#1234` inline.
+
+      **Upgrade notes** (1-3 bullets, omit if empty): anything users must do or watch
+      out for (deprecations, breaking changes, behavior shifts).
+
+    Rules:
+    - Don't fabricate PRs or features. Stick to what's in the notes.
+    - Skip pure docs/CI churn unless headline-worthy.
+    - Output GitHub-flavored markdown. Do NOT include the release title (caller adds it).
+""").strip()
+
+
 DAILY_SYSTEM = dedent("""
     You are summarizing one day of activity in the vLLM repo for engineers tracking the project.
     You will receive the day's merged PRs and any release that landed.
@@ -207,3 +228,69 @@ def summarize_window(
 
 # Backward-compat alias used by existing CLI/workflow imports.
 summarize_week = summarize_window
+
+
+def summarize_release(
+    db_path: Path,
+    tag: str | None = None,
+    model: str | None = None,
+    backend: str | None = None,
+    repo: str = "vllm-project/vllm",
+    force: bool = False,
+) -> tuple[str, str]:
+    """LLM-summarize a single release's body. Caches in release_summaries.
+
+    Returns (tag, summary_markdown). If tag is None, picks the latest stable release.
+    If a cached summary exists and force=False, returns it without calling the LLM.
+    """
+    with connect(db_path) as conn:
+        if tag is None:
+            row = conn.execute(
+                "SELECT tag, body, name FROM releases WHERE is_prerelease = 0 "
+                "ORDER BY published_at DESC LIMIT 1"
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT tag, body, name FROM releases WHERE tag = ?", (tag,)
+            ).fetchone()
+        if not row:
+            raise RuntimeError(f"No release found for tag={tag!r}")
+        tag = row["tag"]
+        body = row["body"] or ""
+
+        if not force:
+            cached = conn.execute(
+                "SELECT summary FROM release_summaries WHERE tag = ?", (tag,)
+            ).fetchone()
+            if cached:
+                return tag, cached["summary"]
+
+    backend = _detect_backend(backend)
+    model = model or os.getenv("LLM_MODEL") or DEFAULT_MODELS[backend]
+
+    # Cap body to keep prompt bounded (some vLLM releases have 20k+ char notes)
+    if len(body) > 20000:
+        body = body[:20000] + "\n…(truncated)"
+
+    user_input = f"Release: {tag}\n\nRaw release notes:\n\n{body}"
+
+    if backend == "github":
+        text = _call_github_models(RELEASE_SYSTEM, user_input, model)
+    elif backend == "anthropic":
+        text = _call_anthropic(RELEASE_SYSTEM, user_input, model)
+    else:
+        raise ValueError(f"Unknown backend: {backend}")
+
+    summary = link_refs(text.strip(), repo)
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    with connect(db_path) as conn:
+        conn.execute(
+            """INSERT INTO release_summaries(tag, summary, model, backend, generated_at)
+               VALUES(?,?,?,?,?)
+               ON CONFLICT(tag) DO UPDATE SET
+                 summary=excluded.summary, model=excluded.model,
+                 backend=excluded.backend, generated_at=excluded.generated_at""",
+            (tag, summary, model, backend, now_iso),
+        )
+    return tag, summary

@@ -54,7 +54,8 @@ def _card(value: str, label: str) -> str:
 
 
 def _render_latest_release(db_path: Path, repo: str) -> str:
-    """Section showing the latest stable release + supported models grouped by vendor."""
+    """Section showing the latest stable release + LLM summary + supported models."""
+    import markdown as md
     with connect(db_path) as conn:
         row = conn.execute(
             "SELECT tag, name, published_at, url FROM releases "
@@ -67,6 +68,10 @@ def _render_latest_release(db_path: Path, repo: str) -> str:
             "SELECT section, item FROM release_sections WHERE tag = ?",
             (latest["tag"],),
         ).fetchall()
+        summary_row = conn.execute(
+            "SELECT summary, model, backend FROM release_summaries WHERE tag = ?",
+            (latest["tag"],),
+        ).fetchone()
 
     tag = latest["tag"]
     rel_url = latest["url"] or f"https://github.com/{repo}/releases/tag/{tag}"
@@ -133,6 +138,13 @@ def _render_latest_release(db_path: Path, repo: str) -> str:
         vendor_html = "<p><em>No model-support section found in this release's notes.</em></p>"
 
     published = latest["published_at"][:10] if latest.get("published_at") else "?"
+
+    summary_html = ""
+    if summary_row:
+        rendered = md.markdown(summary_row["summary"], extensions=["tables", "fenced_code"])
+        model_note = f"<em style='opacity:.6;font-size:.8rem'>LLM summary · {escape(summary_row['backend'] or '?')} / {escape(summary_row['model'] or '?')}</em>"
+        summary_html = f"<div style='border-left:3px solid #6cf6;padding:.5rem 1rem;margin:1rem 0;background:#6cf1'>{rendered}{model_note}</div>"
+
     return f"""
 <h2>Latest release</h2>
 <p>
@@ -140,6 +152,7 @@ def _render_latest_release(db_path: Path, repo: str) -> str:
   {escape("— " + name) if name and name != tag else ""}
   <span style="opacity:.7">· published {escape(published)}</span>
 </p>
+{summary_html}
 <h3>Supported models (added or highlighted in {escape(tag)})</h3>
 {vendor_html}
 """

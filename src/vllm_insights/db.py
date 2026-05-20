@@ -60,6 +60,15 @@ CREATE TABLE IF NOT EXISTS pr_files (
     FOREIGN KEY (pr_number) REFERENCES pull_requests(number)
 );
 
+CREATE TABLE IF NOT EXISTS release_summaries (
+    tag             TEXT PRIMARY KEY,
+    summary         TEXT NOT NULL,
+    model           TEXT,
+    backend         TEXT,
+    generated_at    TEXT NOT NULL,
+    FOREIGN KEY (tag) REFERENCES releases(tag)
+);
+
 CREATE TABLE IF NOT EXISTS sync_state (
     entity          TEXT PRIMARY KEY,        -- 'releases' | 'prs' | 'commits'
     last_synced_at  TEXT NOT NULL,

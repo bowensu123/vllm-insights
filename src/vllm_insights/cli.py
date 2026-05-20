@@ -16,7 +16,7 @@ from .fetcher.commits import sync_commits
 from .analyzer.queries import releases_df, prs_df, commits_df
 from .analyzer.linking import link_prs_to_releases
 from .report import generate_daily_report
-from .summarize import summarize_window
+from .summarize import summarize_window, summarize_release
 from .build_site import build_index, build_report_index
 
 app = typer.Typer(add_completion=False, help="vLLM GitHub insights CLI")
@@ -118,6 +118,24 @@ def stats():
     t.add_row("PRs", str(len(prs)), str(prs["created_at"].max()) if not prs.empty else "—")
     t.add_row("Commits", str(len(cm)), str(cm["committed_at"].max()) if not cm.empty else "—")
     console.print(t)
+
+
+@app.command(name="summarize-release")
+def summarize_release_cmd(
+    tag: str = typer.Option("latest", "--tag", help="Release tag, or 'latest' for newest stable"),
+    backend: str = typer.Option(None, "--backend", help="github | anthropic"),
+    model: str = typer.Option(None, "--model"),
+    force: bool = typer.Option(False, "--force", help="Re-run LLM even if cached"),
+):
+    """LLM-summarize a release's notes (cached in SQLite)."""
+    s = load_settings()
+    init_db(s.db_path)
+    real_tag, summary = summarize_release(
+        s.db_path, tag=None if tag == "latest" else tag,
+        backend=backend, model=model, repo=s.repo, force=force,
+    )
+    console.print(f"[green]Summary cached for[/] {real_tag}")
+    console.print(summary)
 
 
 @app.command()
