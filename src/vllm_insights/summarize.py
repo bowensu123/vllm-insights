@@ -54,23 +54,33 @@ WEEKLY_SYSTEM = dedent("""
 """).strip()
 
 
+# Bump when RELEASE_SYSTEM changes meaningfully — invalidates cached summaries.
+RELEASE_PROMPT_VERSION = "v2"
+
+
 RELEASE_SYSTEM = dedent("""
     You are summarizing one vLLM release for engineers who want a quick overview
     before reading the full notes. You will receive the raw release-notes markdown.
 
+    A separate, structured "Supported models" section is rendered elsewhere on the page,
+    so DO NOT list individual added models here. You may mention "expanded model coverage"
+    in the overview at a high level, but no per-model bullets.
+
     Produce:
-      **Overview** (2-3 sentences): what this release is about, who should care, any headline change.
+      **Overview** (2-3 sentences): what this release is about, who should care,
+      any headline change. May briefly note "new model support" generally without listing models.
 
-      **Key changes**: 5-9 bullets, grouped under inline-bold labels where useful
-      (e.g. **Model support:**, **Performance:**, **Hardware:**, **API:**, **Breaking:**).
-      Each bullet ≤ 1 line, cite PR refs `#1234` inline.
+      **Key changes**: 4-7 bullets covering NON-model topics only, grouped under inline-bold
+      labels: **Performance:**, **Hardware:**, **Quantization:**, **API & serving:**,
+      **Engine/scheduler:**. Each bullet ≤ 1 line, cite PR refs `#1234` inline.
 
-      **Upgrade notes** (1-3 bullets, omit if empty): anything users must do or watch
-      out for (deprecations, breaking changes, behavior shifts).
+      **Upgrade notes** (1-3 bullets, omit if empty): deprecations, breaking changes,
+      behavior shifts users must watch out for.
 
     Rules:
     - Don't fabricate PRs or features. Stick to what's in the notes.
     - Skip pure docs/CI churn unless headline-worthy.
+    - Do NOT include "Model support" or "New models" bullets — those are handled separately.
     - Output GitHub-flavored markdown. Do NOT include the release title (caller adds it).
 """).strip()
 
@@ -260,9 +270,10 @@ def summarize_release(
 
         if not force:
             cached = conn.execute(
-                "SELECT summary FROM release_summaries WHERE tag = ?", (tag,)
+                "SELECT summary, model FROM release_summaries WHERE tag = ?", (tag,)
             ).fetchone()
-            if cached:
+            # Cache is invalidated if model field doesn't carry the current prompt version tag.
+            if cached and cached["model"] and RELEASE_PROMPT_VERSION in (cached["model"] or ""):
                 return tag, cached["summary"]
 
     backend = _detect_backend(backend)
@@ -284,6 +295,8 @@ def summarize_release(
     summary = link_refs(text.strip(), repo)
 
     now_iso = datetime.now(timezone.utc).isoformat()
+    # Stamp the prompt version into the model field so cache invalidates on prompt changes.
+    model_stamped = f"{model} [{RELEASE_PROMPT_VERSION}]"
     with connect(db_path) as conn:
         conn.execute(
             """INSERT INTO release_summaries(tag, summary, model, backend, generated_at)
@@ -291,6 +304,6 @@ def summarize_release(
                ON CONFLICT(tag) DO UPDATE SET
                  summary=excluded.summary, model=excluded.model,
                  backend=excluded.backend, generated_at=excluded.generated_at""",
-            (tag, summary, model, backend, now_iso),
+            (tag, summary, model_stamped, backend, now_iso),
         )
     return tag, summary
