@@ -129,7 +129,8 @@ def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
   <h1>vLLM GitHub Insights</h1>
   <div>Tracking <a href="{repo_url}">{escape(repo)}</a> · updated {now:%Y-%m-%d %H:%M UTC}</div>
   <nav style="margin-top:.6rem">
-    <a href="reports/">Daily reports</a>
+    <a href="daily/">Daily LLM digest</a>
+    <a href="reports/">Daily stats reports</a>
     <a href="weekly/">Weekly LLM summaries</a>
     <a href="{repo_url}">Source repo</a>
   </nav>

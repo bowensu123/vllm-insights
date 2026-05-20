@@ -16,7 +16,7 @@ from .fetcher.commits import sync_commits
 from .analyzer.queries import releases_df, prs_df, commits_df
 from .analyzer.linking import link_prs_to_releases
 from .report import generate_daily_report
-from .summarize import summarize_week
+from .summarize import summarize_window
 from .build_site import build_index, build_report_index
 
 app = typer.Typer(add_completion=False, help="vLLM GitHub insights CLI")
@@ -80,17 +80,19 @@ def report(
 
 @app.command()
 def summarize(
-    out: Path = typer.Option(Path("reports/weekly-summary.md"), "--out", help="Output path"),
-    days: int = typer.Option(7, "--days"),
-    model: str = typer.Option(None, "--model", help="Override ANTHROPIC_MODEL"),
+    out: Path = typer.Option(Path("docs/weekly/latest.md"), "--out", help="Output path"),
+    days: int = typer.Option(7, "--days", help="Window in days (use 1 for daily digest)"),
+    model: str = typer.Option(None, "--model", help="Override default model"),
+    backend: str = typer.Option(None, "--backend",
+                                help="github | anthropic (default: github if GITHUB_TOKEN set)"),
 ):
-    """LLM-summarize the past week of releases + merged PRs."""
+    """LLM-summarize the recent activity window."""
     s = load_settings()
     init_db(s.db_path)
-    text = summarize_week(s.db_path, days=days, model=model)
+    text = summarize_window(s.db_path, days=days, model=model, backend=backend)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
-    console.print(f"[green]Weekly summary written:[/] {out}")
+    console.print(f"[green]Summary written:[/] {out}")
 
 
 @app.command()
@@ -118,6 +120,7 @@ def site(
     s = load_settings()
     init_db(s.db_path)
     idx = build_index(s.db_path, docs, repo=s.repo)
+    build_report_index(docs / "daily", "Daily LLM digests")
     build_report_index(docs / "reports", "Daily activity reports")
     build_report_index(docs / "weekly", "Weekly LLM summaries")
     console.print(f"[green]Site built:[/] {idx}")
