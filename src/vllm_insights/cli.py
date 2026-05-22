@@ -13,12 +13,15 @@ from .github import GitHubClient
 from .fetcher.releases import sync_releases
 from .fetcher.prs import sync_prs
 from .fetcher.commits import sync_commits
+from .fetcher.issues import sync_issues
 from .analyzer.queries import releases_df, prs_df, commits_df
 from .analyzer.linking import link_prs_to_releases
 from .report import generate_weekly_digest
 from .registry_sync import sync_registry
+from .source_scan import sync_source_inventory
 from .summarize import summarize_window, summarize_release
 from .build_site import build_index, build_report_index
+from .feed import build_feed, build_feature_pages
 
 app = typer.Typer(add_completion=False, help="vLLM GitHub insights CLI")
 console = Console()
@@ -29,8 +32,13 @@ def sync(
     releases: bool = typer.Option(False, "--releases", help="Sync releases"),
     prs: bool = typer.Option(False, "--prs", help="Sync pull requests (incremental)"),
     commits: bool = typer.Option(False, "--commits", help="Sync commits (incremental)"),
+    issues: bool = typer.Option(False, "--issues",
+                                help="Sync labelled issues (performance / regression / RFC / …)"),
     registry: bool = typer.Option(False, "--registry",
                                   help="Mirror upstream vllm/model_executor/models/registry.py"),
+    source_scan: bool = typer.Option(False, "--source-scan",
+                                     help="Enumerate quant / attention / platform / parallel "
+                                          "/ spec-decode / lora files from upstream tree"),
     full: bool = typer.Option(False, "--full", help="Ignore last_synced_at and full-refresh"),
     all_: bool = typer.Option(False, "--all", help="Sync everything"),
 ):
@@ -38,10 +46,11 @@ def sync(
     s = load_settings(require_token=True)
     init_db(s.db_path)
     if all_:
-        releases = prs = commits = registry = True
-    if not (releases or prs or commits or registry):
+        releases = prs = commits = issues = registry = source_scan = True
+    if not any((releases, prs, commits, issues, registry, source_scan)):
         console.print(
-            "[yellow]Pick at least one of --releases / --prs / --commits / --registry / --all[/]"
+            "[yellow]Pick at least one of --releases / --prs / --commits / --issues "
+            "/ --registry / --source-scan / --all[/]"
         )
         raise typer.Exit(1)
 
@@ -53,6 +62,13 @@ def sync(
             sync_prs(client, s.db_path, full=full)
         if commits:
             sync_commits(client, s.db_path, full=full)
+        if issues:
+            sync_issues(client, s.db_path, full=full)
+        if source_scan:
+            counts = sync_source_inventory(client, s.db_path)
+            total = sum(counts.values())
+            console.print(f"[cyan]Source inventory synced:[/] {total} files "
+                          f"({', '.join(f'{k}={v}' for k, v in sorted(counts.items()))})")
     finally:
         client.close()
     if registry:
@@ -185,9 +201,13 @@ def site(
     s = load_settings()
     init_db(s.db_path)
     idx = build_index(s.db_path, docs, repo=s.repo)
-    build_report_index(docs / "reports", "Daily reports (stats + LLM digest)")
-    build_report_index(docs / "weekly", "Weekly LLM summaries")
+    build_report_index(docs / "reports", "Daily reports (deprecated)")
+    build_report_index(docs / "weekly", "Weekly themed digests")
+    n_feat = build_feature_pages(s.db_path, docs, repo=s.repo)
+    feed_path = build_feed(s.db_path, docs)
     console.print(f"[green]Site built:[/] {idx}")
+    console.print(f"[green]Feature pages:[/] {n_feat} files under {docs}/features/")
+    console.print(f"[green]Atom feed:[/] {feed_path}")
 
 
 @app.command()

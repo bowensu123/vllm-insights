@@ -82,3 +82,38 @@ class GitHubClient:
         if since_iso:
             params["since"] = since_iso
         yield from self.paginate(f"/repos/{self.repo}/commits", params=params)
+
+    def list_issues(self, since_iso: str | None = None, labels: str | None = None,
+                    state: str = "all") -> Iterator[dict]:
+        """List issues (NOT pull requests). The REST /issues endpoint returns both;
+        we filter PRs out client-side by skipping anything with a 'pull_request' key.
+
+        `labels` is a comma-separated string of label names (any-of semantics on GH).
+        """
+        params: dict[str, Any] = {"state": state, "sort": "updated", "direction": "desc"}
+        if labels:
+            params["labels"] = labels
+        if since_iso:
+            params["since"] = since_iso
+        for it in self.paginate(f"/repos/{self.repo}/issues", params=params):
+            if "pull_request" in it:
+                continue
+            yield it
+
+    def get_tree(self, tree_sha: str = "main", recursive: bool = True) -> dict:
+        """Fetch the full git tree at `tree_sha` (a branch or commit SHA).
+        Returns the raw API response; the `tree` field is the list of entries.
+
+        Note: GitHub truncates trees over ~100k entries (see `truncated` field).
+        vLLM is well under that threshold today.
+        """
+        params = {"recursive": "1"} if recursive else None
+        r = self._request("GET", f"/repos/{self.repo}/git/trees/{tree_sha}", params=params)
+        return r.json()
+
+    def get_last_commit_for_path(self, path: str, branch: str = "main") -> dict | None:
+        """Return the most recent commit that touched `path` on `branch`."""
+        r = self._request("GET", f"/repos/{self.repo}/commits",
+                          params={"path": path, "sha": branch, "per_page": 1})
+        items = r.json()
+        return items[0] if items else None

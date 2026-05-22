@@ -51,7 +51,7 @@ jobs:
           restore-keys: |
             vllm-insights-db-
 
-      - name: Sync
+      - name: Sync (releases / PRs / commits / issues / registry / source-scan)
         run: |
           if [ "${{ inputs.full }}" = "true" ]; then
             vllm-insights sync --all --full

@@ -90,6 +90,42 @@ CREATE TABLE IF NOT EXISTS model_registry (
 );
 
 CREATE INDEX IF NOT EXISTS idx_reg_cat ON model_registry(category);
+
+-- Inventory of feature implementations discovered by scanning vLLM source.
+-- Each row is a file or class that implements a feature (a quantization method,
+-- attention backend, hardware platform, parallelism mode, spec-decode method).
+-- We deliberately don't store a maturity label here — we only show that the
+-- file exists in upstream + when it was last touched + recent PR activity.
+CREATE TABLE IF NOT EXISTS source_inventory (
+    kind            TEXT NOT NULL,       -- 'quantization' | 'platform' | 'attention' | 'parallel' | 'spec_decode' | 'lora' | 'kernel'
+    name            TEXT NOT NULL,       -- e.g. 'fp8', 'awq_marlin', 'cuda', 'rocm', 'ngram'
+    source_path     TEXT NOT NULL,       -- e.g. 'vllm/model_executor/layers/quantization/fp8.py'
+    source_sha      TEXT,                -- the SHA the path was discovered at
+    last_seen_at    TEXT NOT NULL,
+    PRIMARY KEY (kind, name, source_path)
+);
+
+CREATE INDEX IF NOT EXISTS idx_src_kind ON source_inventory(kind);
+CREATE INDEX IF NOT EXISTS idx_src_path ON source_inventory(source_path);
+
+-- GitHub Issues — separate from PRs because the activity profile is different.
+-- We only sync issues carrying a label we care about (performance, regression,
+-- rfc, bug:*, etc.) to avoid pulling tens of thousands of feature-requests.
+CREATE TABLE IF NOT EXISTS issues (
+    number          INTEGER PRIMARY KEY,
+    title           TEXT NOT NULL,
+    state           TEXT NOT NULL,        -- OPEN / CLOSED
+    author          TEXT,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL,
+    closed_at       TEXT,
+    labels          TEXT,                 -- comma-separated
+    url             TEXT,
+    comments        INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_issue_updated ON issues(updated_at);
+CREATE INDEX IF NOT EXISTS idx_issue_state ON issues(state);
 """
 
 

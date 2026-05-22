@@ -95,141 +95,35 @@ FOCUS_VENDORS: list[str] = [
 ]
 
 
-# Per-vendor tech profile. Field semantics:
-#   tagline   — one-line "why this matters for vLLM"
-#   archs     — vLLM model-registry class names users actually pass to --model
-#               (or that get auto-selected from HF config.architectures).
-#   modal     — modalities exposed via vLLM (text / vision / audio / omni)
-#   features  — engine/kernel/quantization features that light up for this family
-#   series    — notable model lines under this vendor, for orientation
-VENDOR_TECH: dict[str, dict] = {
-    "Alibaba (Qwen)": {
-        "tagline": "Largest officially-supported family in vLLM; reference for MoE expert "
-                   "parallel + multi-modal pipelines.",
-        "archs": [
-            "Qwen2ForCausalLM", "Qwen3ForCausalLM",
-            "Qwen2MoeForCausalLM", "Qwen3MoeForCausalLM",
-            "Qwen2VLForConditionalGeneration", "Qwen2_5_VLForConditionalGeneration",
-            "Qwen3VLForConditionalGeneration",
-            "Qwen2AudioForConditionalGeneration",
-            "Qwen3OmniMoeForConditionalGeneration",
-        ],
-        "modal": ["text", "vision", "audio", "omni"],
-        "features": [
-            "FP8", "AWQ", "GPTQ", "BnB", "GGUF",
-            "MoE + Expert Parallel", "FlashAttention-3",
-            "Speculative decoding", "LoRA", "Tool calling",
-            "YaRN / Dual-Chunk long context (≥1M)",
-        ],
-        "series": ["Qwen3", "Qwen3-VL", "Qwen3-Omni", "Qwen2.5-VL", "QwQ"],
-    },
-    "DeepSeek": {
-        "tagline": "Flagship MoE workload — drives vLLM's MLA backend, DeepEP integration "
-                   "and MTP speculative decoding.",
-        "archs": [
-            "DeepseekV2ForCausalLM", "DeepseekV3ForCausalLM",
-            "DeepseekVLV2ForConditionalGeneration",
-        ],
-        "modal": ["text", "vision"],
-        "features": [
-            "MLA (Multi-head Latent Attention)",
-            "MoE + Expert Parallel (DeepEP)",
-            "FP8 block-wise quant",
-            "MTP speculative decoding",
-            "PD disaggregation",
-            "Long context",
-        ],
-        "series": ["DeepSeek-V3.2", "DeepSeek-V3", "DeepSeek-R1", "DeepSeek-VL2"],
-    },
-    "MiniMax": {
-        "tagline": "First production linear-attention hybrid in vLLM; long-context (1M+) "
-                   "MoE workhorse.",
-        "archs": [
-            "MiniMaxText01ForCausalLM",
-            "MiniMaxM1ForCausalLM",
-        ],
-        "modal": ["text"],
-        "features": [
-            "Lightning Attention (linear/hybrid)",
-            "MoE",
-            "FP8",
-            "Ultra-long context (1M+)",
-        ],
-        "series": ["MiniMax-Text-01", "MiniMax-M1", "MiniMax-M2"],
-    },
-    "Zhipu (GLM)": {
-        "tagline": "Multi-generation coverage from ChatGLM through GLM-4.x, including text "
-                   "and vision MoE variants.",
-        "archs": [
-            "ChatGLMForCausalLM",
-            "GlmForCausalLM", "Glm4ForCausalLM",
-            "Glm4MoeForCausalLM",
-            "Glm4vForConditionalGeneration", "Glm4vMoeForConditionalGeneration",
-        ],
-        "modal": ["text", "vision"],
-        "features": [
-            "MoE", "FP8", "AWQ", "GPTQ",
-            "FlashAttention", "LoRA", "Long context",
-        ],
-        "series": ["GLM-4.6", "GLM-4.5", "GLM-4.5V", "ChatGLM3"],
-    },
-    "Meta": {
-        "tagline": "Reference architecture for vLLM — almost every kernel and scheduler "
-                   "optimisation lands here first.",
-        "archs": [
-            "LlamaForCausalLM",
-            "MllamaForConditionalGeneration",
-            "Llama4ForConditionalGeneration",
-        ],
-        "modal": ["text", "vision"],
-        "features": [
-            "FlashAttention-3", "FP8", "AWQ", "GPTQ", "BnB", "GGUF",
-            "Chunked Prefill", "Prefix Caching",
-            "Speculative decoding (EAGLE, Medusa, MTP)",
-            "LoRA", "TP / PP / EP (Llama 4)",
-        ],
-        "series": ["Llama 4", "Llama 3.3", "Llama 3.2-Vision", "Code Llama"],
-    },
-    "Google": {
-        "tagline": "Drives vLLM's sliding-window + global hybrid attention path; PaliGemma "
-                   "is the reference encoder-decoder VLM.",
-        "archs": [
-            "GemmaForCausalLM", "Gemma2ForCausalLM", "Gemma3ForCausalLM",
-            "Gemma3ForConditionalGeneration",
-            "PaliGemmaForConditionalGeneration",
-        ],
-        "modal": ["text", "vision"],
-        "features": [
-            "FP8", "AWQ", "BnB",
-            "FlashAttention", "Sliding-window attention",
-            "Long context", "LoRA",
-        ],
-        "series": ["Gemma 3", "Gemma 2", "PaliGemma 2"],
-    },
-    "Microsoft": {
-        "tagline": "Phi-4-Multimodal is vLLM's first text + vision + audio omnimodal "
-                   "endpoint; Phi-MoE pushes small-MoE serving.",
-        "archs": [
-            "PhiForCausalLM", "Phi3ForCausalLM", "Phi3SmallForCausalLM",
-            "PhiMoEForCausalLM",
-            "Phi4MMForCausalLM",
-        ],
-        "modal": ["text", "vision", "audio"],
-        "features": [
-            "FP8", "AWQ", "GPTQ", "LoRA",
-            "MoE", "Long context",
-        ],
-        "series": ["Phi-4", "Phi-4-Multimodal", "Phi-3.5-MoE", "Phi-3"],
-    },
+# Per-vendor metadata. We used to keep curated taglines, feature lists and
+# series here — that was opinion masquerading as fact. The only field we
+# still allow is `hf_org`, because the HF org page is the canonical home for
+# the vendor's weights and there's nothing to make up. Everything else (arch
+# count, modalities, recent activity) is now derived in build_site.py from
+# the live registry + PR cache.
+VENDOR_META: dict[str, dict] = {
+    "Alibaba (Qwen)":   {"hf_org": "Qwen"},
+    "DeepSeek":         {"hf_org": "deepseek-ai"},
+    "MiniMax":          {"hf_org": "MiniMaxAI"},
+    "Zhipu (GLM)":      {"hf_org": "zai-org"},
+    "Meta":             {"hf_org": "meta-llama"},
+    "Google":           {"hf_org": "google"},
+    "Microsoft":        {"hf_org": "microsoft"},
 }
 
 
 def is_focus_vendor(vendor: str) -> bool:
-    return vendor in VENDOR_TECH
+    return vendor in VENDOR_META
 
 
-def vendor_tech(vendor: str) -> dict | None:
-    return VENDOR_TECH.get(vendor)
+def vendor_meta(vendor: str) -> dict | None:
+    return VENDOR_META.get(vendor)
+
+
+# Old name kept as an alias so external callers don't break during the
+# rollout. New code should use `vendor_meta`.
+def vendor_tech(vendor: str) -> dict | None:  # pragma: no cover - thin shim
+    return vendor_meta(vendor)
 
 
 _CAMEL_SPLIT_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")

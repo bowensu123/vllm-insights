@@ -32,7 +32,7 @@ from .models import (
     hf_search_url,
     is_focus_vendor,
     looks_like_model_section,
-    vendor_tech,
+    vendor_meta,
 )
 from .registry_sync import load_registry
 from .summarize import link_refs
@@ -111,13 +111,22 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #ddd3;
 .vendor-card .new-list { margin: .25rem 0 0; padding-left: 1.1rem; font-size: .82rem; }
 .vendor-card .new-list li { margin: .15rem 0; }
 .vendor-card .no-new { font-size: .78rem; opacity: .55; font-style: italic; margin: 0; }
-.vendor-card .series { font-size: .72rem; opacity: .6; }
 .vendor-card .pill.arch.removed {
     text-decoration: line-through;
     opacity: .45;
     border-color: #c66a;
     background: rgba(220,80,80,.08);
 }
+.vendor-card .arch-list { display: flex; flex-direction: column; gap: .4rem; }
+.vendor-card .arch-group { display: block; }
+.vendor-card .arch-cat { font-size: .65rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .06em; opacity: .55;
+    margin-right: .45rem; }
+.vendor-card .arch-cat.removed-cat { color: #c66; opacity: .8; }
+.vendor-card .vendor-activity { font-size: .78rem;
+    border-top: 1px dashed #6663; padding-top: .4rem; }
+.vendor-card .vendor-activity .row-label { display: block;
+    margin-bottom: .15rem; }
 .vendor-card .registry-meta { font-size: .68rem; opacity: .5;
     border-top: 1px dashed #6663; padding-top: .35rem; margin-top: .2rem; }
 
@@ -135,6 +144,22 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #ddd3;
 .digest-pointer:hover { background: rgba(102,204,255,.08); border-color: #6cf8; }
 .digest-pointer h3 { margin: 0 0 .25rem; font-size: 1rem; }
 .digest-pointer p { margin: 0; font-size: .85rem; opacity: .75; }
+
+/* Open issues block */
+section.open-issues { margin: 2rem 0 1rem; }
+section.open-issues h2 { margin-bottom: .3rem; }
+ul.issue-list { list-style: none; padding: 0; margin: .4rem 0; }
+ul.issue-list li { padding: .35rem 0; border-bottom: 1px solid #ddd3;
+    font-size: .88rem; }
+ul.issue-list li:last-child { border-bottom: 0; }
+ul.issue-list li a { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    text-decoration: none; opacity: .85; }
+ul.issue-list li a:hover { opacity: 1; text-decoration: underline; }
+.issue-label { display: inline-block; font-size: .68rem;
+    padding: .02rem .35rem; margin-left: .2rem; border-radius: 6px;
+    border: 1px solid #8884; background: rgba(127,127,127,.07);
+    opacity: .8; }
+.issue-meta { font-size: .72rem; opacity: .55; margin-left: .4rem; }
 
 /* Activity stats collapsed at the bottom */
 details.activity > summary {
@@ -166,17 +191,19 @@ def _item_to_html(item: str, repo: str) -> str:
 
 
 def _load_registry_by_vendor(db_path: Path) -> tuple[
-    dict[str, list[dict]], dict[str, list[dict]], str | None
+    dict[str, dict[str, list[dict]]], dict[str, list[dict]], str | None
 ]:
-    """Load mirrored upstream registry rows and group them by focus vendor.
+    """Load mirrored upstream registry rows and group by focus vendor and
+    registry category (text / multimodal / embedding / …).
 
-    Returns `(live, removed, last_seen_at)` where each dict is
-    `{vendor_name: [registry_row, ...]}`. `last_seen_at` is the timestamp of
-    the most recent sync that observed any row — useful for a "registry as of"
-    footer.
+    Returns `(live, removed, last_seen_at)` where:
+      live[vendor][category] = [registry_row, ...]
+      removed[vendor]        = [registry_row, ...]  (no category breakdown
+                                                     because the row is
+                                                     historical anyway)
     """
     rows = load_registry(db_path, include_removed=True)
-    live: dict[str, list[dict]] = {}
+    live: dict[str, dict[str, list[dict]]] = {}
     removed: dict[str, list[dict]] = {}
     last_seen: str | None = None
     for r in rows:
@@ -188,9 +215,50 @@ def _load_registry_by_vendor(db_path: Path) -> tuple[
         vendor, _ = hit
         if not is_focus_vendor(vendor):
             continue
-        bucket = removed if r["removed_at"] else live
-        bucket.setdefault(vendor, []).append(r)
+        if r["removed_at"]:
+            removed.setdefault(vendor, []).append(r)
+        else:
+            live.setdefault(vendor, {}).setdefault(r["category"], []).append(r)
     return live, removed, last_seen
+
+
+def _vendor_activity_90d(db_path: Path, modules: list[str]) -> tuple[int, str | None]:
+    """Count merged PRs from the last 90 days that touched any file path under
+    `vllm/model_executor/models/{module}*` for the given module names. Returns
+    `(count, most_recent_merge_at)`.
+    """
+    if not modules:
+        return 0, None
+    placeholders = " OR ".join(["prf.path LIKE ?"] * len(modules))
+    args = [f"vllm/model_executor/models/{m}%" for m in modules]
+    with connect(db_path) as conn:
+        row = conn.execute(
+            f"""
+            SELECT COUNT(DISTINCT p.number) AS n, MAX(p.merged_at) AS last_at
+            FROM pull_requests p
+            JOIN pr_files prf ON prf.pr_number = p.number
+            WHERE p.merged_at IS NOT NULL
+              AND p.merged_at >= datetime('now', '-90 days')
+              AND ({placeholders})
+            """,
+            tuple(args),
+        ).fetchone()
+    return int(row["n"] or 0), row["last_at"]
+
+
+# Registry category → user-facing modality label. This is derivation, not
+# curation: the category is upstream's own grouping.
+_CATEGORY_LABEL = {
+    "text":             "text-generation",
+    "multimodal":       "multimodal",
+    "embedding":        "embedding",
+    "classification":   "classification",
+    "speculative":      "draft (spec-decode)",
+    "reward":           "reward",
+    "late_interaction": "retrieval",
+    "transcription":    "transcription",
+    "cross_encoder":    "cross-encoder",
+}
 
 
 def _render_focus_grid(
@@ -198,67 +266,86 @@ def _render_focus_grid(
     db_path: Path,
     repo: str,
 ) -> str:
-    """Render a grid of tech cards for the curated focus vendors.
+    """Render the focus-vendor grid.
 
-    The arch-class pills now come from the live mirror of upstream
-    `registry.py` (synced via `vllm-insights sync --registry`); the curated
-    `VENDOR_TECH` table provides only the human-authored tagline, modalities,
-    feature pills and series names. If the registry hasn't been synced yet we
-    fall back to the curated arch list so the page is never empty.
+    Everything in each card is derived: arches come from the live mirror of
+    upstream `registry.py`, category buckets are upstream's own grouping,
+    PR activity is computed from our pr_files cache. The only hardcoded thing
+    we keep is the HF org slug (a permanent URL anchor — there's no honest way
+    to derive it).
     """
     live, removed, last_seen = _load_registry_by_vendor(db_path)
-    from .models import VENDOR_RULES
 
     cards: list[str] = []
     for vendor in FOCUS_VENDORS:
-        tech = vendor_tech(vendor) or {}
-        items = by_focus.get(vendor, [])
+        meta = vendor_meta(vendor) or {}
+        org_slug = meta.get("hf_org")
+        head = (
+            f'<a href="{hf_org_url(org_slug)}" target="_blank" '
+            f'rel="noopener">{escape(vendor)}</a>'
+            if org_slug else escape(vendor)
+        )
 
-        # Vendor display + HF org link
-        org_slug = items[0][1] if items else None
-        if not org_slug:
-            for _, vname, oslug in VENDOR_RULES:
-                if vname == vendor:
-                    org_slug = oslug
-                    break
-        if org_slug:
-            head = (
-                f'<a href="{hf_org_url(org_slug)}" target="_blank" '
-                f'rel="noopener">{escape(vendor)}</a>'
-            )
-        else:
-            head = escape(vendor)
-
-        # Arch pills — live registry first, fall back to curated list
-        live_archs = [r["arch_class"] for r in live.get(vendor, [])]
+        live_by_cat = live.get(vendor, {})
         removed_archs = [r["arch_class"] for r in removed.get(vendor, [])]
-        if live_archs or removed_archs:
-            arch_pills = "".join(
-                f'<span class="pill arch">{escape(a)}</span>'
-                for a in sorted(live_archs)
-            ) + "".join(
-                f'<span class="pill arch removed" title="Removed upstream">'
+        all_live = [r for cat in live_by_cat.values() for r in cat]
+        total = len(all_live)
+
+        # One "modality" badge per registry category we have arches in. The
+        # set of categories is sourced from upstream, not from my head.
+        cat_pills = "".join(
+            f'<span class="pill modal">{escape(_CATEGORY_LABEL.get(cat, cat))}'
+            f' &times;{len(arches)}</span>'
+            for cat, arches in sorted(live_by_cat.items(), key=lambda kv: -len(kv[1]))
+        )
+
+        # Arch pills — every live arch, in alphabetical order, grouped visually
+        # by category (we show category as a thin label between groups).
+        arch_blocks: list[str] = []
+        for cat, arches in sorted(live_by_cat.items(), key=lambda kv: -len(kv[1])):
+            pills = "".join(
+                f'<span class="pill arch">{escape(a["arch_class"])}</span>'
+                for a in sorted(arches, key=lambda a: a["arch_class"])
+            )
+            arch_blocks.append(
+                f'<div class="arch-group">'
+                f'<span class="arch-cat">{escape(_CATEGORY_LABEL.get(cat, cat))}</span>'
+                f'{pills}</div>'
+            )
+        if removed_archs:
+            pills = "".join(
+                f'<span class="pill arch removed" title="No longer in upstream registry">'
                 f'{escape(a)}</span>'
                 for a in sorted(removed_archs)
             )
-        else:
-            arch_pills = "".join(
-                f'<span class="pill arch">{escape(a)}</span>'
-                for a in tech.get("archs", [])
+            arch_blocks.append(
+                '<div class="arch-group">'
+                '<span class="arch-cat removed-cat">removed upstream</span>'
+                f'{pills}</div>'
             )
 
-        modals = "".join(
-            f'<span class="pill modal">{escape(m)}</span>' for m in tech.get("modal", [])
+        # Recent activity: PR touches under any module owned by this vendor's
+        # arches. Module names are taken from `module_name` in the registry row
+        # — that's the actual import path upstream uses, not something we made
+        # up.
+        modules = sorted({a["module_name"] for a in all_live if a.get("module_name")})
+        pr_count_90d, last_pr = _vendor_activity_90d(db_path, modules)
+        last_pr_short = last_pr[:10] if last_pr else None
+        activity_class = (
+            "act-hot" if pr_count_90d >= 6 else
+            "act-warm" if pr_count_90d >= 1 else "act-cold"
         )
-        feats = "".join(
-            f'<span class="pill feat">{escape(f)}</span>' for f in tech.get("features", [])
-        )
-        series = tech.get("series") or []
-        series_html = (
-            f'<div class="series">Series: {escape(" · ".join(series))}</div>'
-            if series else ""
+        activity_html = (
+            f'<div class="vendor-activity">'
+            f'<span class="row-label">Recent activity</span>'
+            f'<span class="{activity_class}">{pr_count_90d} PR(s) in last 90d</span>'
+            + (f' &middot; last merge {escape(last_pr_short)}' if last_pr_short else "")
+            + '</div>'
         )
 
+        # "New in current release" from release notes — kept because it's the
+        # only thing that connects this card to the latest release.
+        items = by_focus.get(vendor, [])
         if items:
             lis = []
             for item, _org in items:
@@ -276,32 +363,22 @@ def _render_focus_grid(
         else:
             new_block = '<p class="no-new">No new entries in this release.</p>'
 
-        arch_count = len(live_archs) if live_archs else len(tech.get("archs", []))
         registry_meta = (
             f'<div class="registry-meta">'
-            f'{arch_count} arch{"" if arch_count == 1 else "es"} in vLLM registry'
-            + (f' · removed: {len(removed_archs)}' if removed_archs else "")
+            f'{total} live arch{"" if total == 1 else "es"} in vLLM registry'
+            + (f' &middot; {len(removed_archs)} removed' if removed_archs else "")
             + '</div>'
         )
 
-        tagline = tech.get("tagline", "")
         cards.append(
             '<div class="vendor-card">'
             f'<div class="vendor-head"><span class="vendor-name">{head}</span></div>'
-            + (f'<p class="tagline">{escape(tagline)}</p>' if tagline else "")
             + (
-                f'<div class="row"><span class="row-label">vLLM arch</span>{arch_pills}</div>'
-                if arch_pills else ""
+                f'<div class="row"><span class="row-label">Categories</span>{cat_pills}</div>'
+                if cat_pills else ""
             )
-            + (
-                f'<div class="row"><span class="row-label">Modalities</span>{modals}</div>'
-                if modals else ""
-            )
-            + (
-                f'<div class="row"><span class="row-label">Engine features</span>{feats}</div>'
-                if feats else ""
-            )
-            + series_html
+            + ('<div class="arch-list">' + "".join(arch_blocks) + '</div>' if arch_blocks else "")
+            + activity_html
             + new_block
             + registry_meta
             + "</div>"
@@ -311,9 +388,10 @@ def _render_focus_grid(
     if last_seen:
         footer = (
             f'<p style="font-size:.72rem;opacity:.55;margin:.3rem 0 0">'
-            f'Architecture pills mirror upstream '
+            f'Architecture pills, categories and counts are mirrored from upstream '
             f'<code>vllm/model_executor/models/registry.py</code> '
-            f'as of {escape(last_seen[:16].replace("T", " "))} UTC.</p>'
+            f'as of {escape(last_seen[:16].replace("T", " "))} UTC. '
+            f'Activity counts come from the merged-PR cache.</p>'
         )
 
     return '<div class="vendor-grid">' + "\n".join(cards) + "</div>" + footer
@@ -393,15 +471,81 @@ def _render_latest_release(db_path: Path, repo: str) -> str:
 {summary_html}
 <h3>Supported models &mdash; vLLM compatibility focus</h3>
 <p class="models-intro">
-  Architecture-class pills are mirrored from upstream
-  <code>vllm/model_executor/models/registry.py</code> on every sync, so they
-  stay correct as new models land or get dropped. Modalities, engine-feature
-  and series labels are curated. New entries from {escape(tag)} are highlighted
-  inline. We surface seven families: Qwen / DeepSeek / MiniMax / GLM and the US
-  top-3 open-source families (Llama / Gemma / Phi).
+  Everything below is derived from the live upstream registry: arch class
+  names, category buckets (text/multimodal/embedding/&hellip;), counts, and
+  the 90-day PR activity hitting each vendor's <code>model_executor/models/</code>
+  modules. The only curated input is the seven-vendor focus list
+  (Qwen / DeepSeek / MiniMax / GLM + Meta / Google / Microsoft). New entries
+  from {escape(tag)} are highlighted inline.
 </p>
 {vendor_html}
 """
+
+
+def _render_open_issues(db_path: Path) -> str:
+    """Top open issues across the labels we care about (performance,
+    regression, RFC, hardware bugs, release-blocker). Pulled from the
+    `issues` table — empty if the issues sync hasn't run yet.
+    """
+    with connect(db_path) as conn:
+        # Check if the table has anything before we render the section header.
+        any_row = conn.execute("SELECT 1 FROM issues LIMIT 1").fetchone()
+        if not any_row:
+            return ""
+        rows = conn.execute(
+            """SELECT number, title, labels, url, comments, updated_at
+               FROM issues
+               WHERE state = 'OPEN'
+               ORDER BY
+                 -- prioritise release-blocker and regression labels
+                 CASE
+                   WHEN labels LIKE '%release-blocker%' THEN 0
+                   WHEN labels LIKE '%regression%' THEN 1
+                   WHEN labels LIKE '%performance%' THEN 2
+                   WHEN labels LIKE '%RFC%' OR labels LIKE '%rfc%' THEN 3
+                   ELSE 4
+                 END,
+                 updated_at DESC
+               LIMIT 20"""
+        ).fetchall()
+
+    if not rows:
+        return ""
+
+    items = []
+    for r in rows:
+        lbls = [l.strip() for l in (r["labels"] or "").split(",") if l.strip()]
+        # Show only the labels we care about so the row doesn't drown in noise.
+        keep = [l for l in lbls if any(
+            kw in l.lower() for kw in
+            ("performance", "regression", "rfc", "blocker", "hardware",
+             "rocm", "tpu", "cpu", "correctness")
+        )]
+        label_html = " ".join(
+            f'<span class="issue-label">{escape(l)}</span>' for l in keep[:4]
+        )
+        last = (r["updated_at"] or "")[:10]
+        items.append(
+            f'<li>'
+            f'<a href="{r["url"]}" target="_blank" rel="noopener">'
+            f'#{r["number"]}</a> {escape(r["title"])} {label_html} '
+            f'<span class="issue-meta">{escape(last)} &middot; '
+            f'{r["comments"] or 0} comment{"" if (r["comments"] or 0) == 1 else "s"}</span>'
+            f'</li>'
+        )
+
+    return (
+        '<section class="open-issues">'
+        '<h2>Open issues worth watching</h2>'
+        '<p class="section-lede">'
+        'Top 20 open issues across labels we care about &mdash; '
+        '<code>release-blocker</code>, <code>regression</code>, '
+        '<code>performance</code>, <code>RFC</code>, hardware bugs. '
+        'Ordered by label priority then last activity.'
+        '</p>'
+        f'<ul class="issue-list">{"".join(items)}</ul>'
+        '</section>'
+    )
 
 
 def _render_digest_pointer(docs_dir: Path) -> str:
@@ -494,7 +638,8 @@ def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
     now = datetime.now(timezone.utc)
 
     latest_html = _render_latest_release(db_path, repo)
-    capability_html = render_capability_matrix()
+    capability_html = render_capability_matrix(db_path, repo)
+    issues_html = _render_open_issues(db_path)
     digest_html = _render_digest_pointer(docs_dir)
     activity_html = _render_activity(rel, prs, cm, now)
 
@@ -503,27 +648,33 @@ def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>vLLM Insights — capability &amp; release intelligence</title>
+<meta name="description" content="Live derived view of vLLM supported models, quantization methods, attention backends, parallelism, spec-decode and hardware platforms. Sourced from upstream registry.py and a recursive git-tree scan — no curation.">
+<link rel="alternate" type="application/atom+xml" title="vLLM Insights — releases &amp; weekly digests" href="feed.xml">
 <style>{PAGE_CSS}</style>
 </head><body>
 <header>
   <h1>vLLM Insights</h1>
   <p class="lede">
-    Capability matrix and release intelligence for
-    <a href="{repo_url}">{escape(repo)}</a>.
-    Built for engineers picking a vLLM version, sizing up a serving rig, or
-    deciding whether a model family is actually production-ready.
+    A derived, source-of-truth view of what
+    <a href="{repo_url}">{escape(repo)}</a> actually ships. Supported models,
+    quantization methods, attention backends, parallelism modes, spec-decode,
+    LoRA, and hardware platforms — every row pulled from upstream source. No
+    hand-curated maturity labels, no opinions baked into Python.
   </p>
   <p class="audience">
-    Updated {now:%Y-%m-%d %H:%M UTC} · data: GitHub REST · supported-models: mirrored from
-    upstream <code>registry.py</code>
+    Updated {now:%Y-%m-%d %H:%M UTC} · GitHub REST + git-tree scan ·
+    <a href="feed.xml">Atom feed</a>
   </p>
   <nav style="margin-top:.6rem">
+    <a href="features/">Feature index</a>
     <a href="weekly/">Weekly digest</a>
-    <a href="reports/">Daily archive</a>
+    <a href="feed.xml">Atom</a>
+    <a href="{repo_url}">Upstream</a>
   </nav>
 </header>
 {latest_html}
 {capability_html}
+{issues_html}
 {digest_html}
 {activity_html}
 <footer>Generated by vllm-insights. GitHub data cached to SQLite and refreshed
