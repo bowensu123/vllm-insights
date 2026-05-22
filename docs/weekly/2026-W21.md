@@ -3,37 +3,42 @@
 _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-project/vllm)_
 
 ## TL;DR
-This week saw significant enhancements in model support and performance optimizations, particularly with the introduction of new features for DeepSeek V4 and improvements in FlashAttention. Notable bug fixes were also implemented across various components, ensuring better stability and functionality.
+This week saw significant improvements in model support and performance optimizations, particularly for the DeepSeek V4 and FlashInfer systems. Notable bug fixes were implemented across various components, enhancing stability and functionality. The introduction of new features and enhancements in the API and serving aspects also indicates a focus on usability and performance.
 
 ## Kernels & attention
-- Added NVFP4 MoE support for DeepSeek V4, enhancing its performance capabilities ([#42209](https://github.com/vllm-project/vllm/pull/42209)).
-- Optimized `CutlassFP8ScaledMMLinearKernel` for padding, achieving a 13.5% TTFT improvement ([#42651](https://github.com/vllm-project/vllm/pull/42651)).
-- Enabled FULL cudagraph capture for TRITON_MLA decode, improving efficiency in model inference ([#42885](https://github.com/vllm-project/vllm/pull/42885)).
+- Improved FlashInfer GDN prefill kernel for Blackwell architecture ([#40717](https://github.com/vllm-project/vllm/pull/40717)).
+- Enhanced Mamba attention module with a refactor for better performance ([#41126](https://github.com/vllm-project/vllm/pull/41126)).
+- Added support for multiple key kernels for sparse attention on XPU ([#37888](https://github.com/vllm-project/vllm/pull/37888)).
 
 ## Quantization
-- Introduced FP8 per-tensor Q scale support to the Triton attention backend, enhancing quantization capabilities ([#42080](https://github.com/vllm-project/vllm/pull/42080)).
-- Fixed swiglu limit issue for humming backend and DeepSeek V4 in FP8 path, addressing quantization-related bugs ([#42541](https://github.com/vllm-project/vllm/pull/42541)).
+- Introduced FP8 per-tensor Q scale support for Triton attention backend ([#42080](https://github.com/vllm-project/vllm/pull/42080)).
+- Optimized `CutlassFP8ScaledMMLinearKernel` for better performance, achieving a 13.5% improvement ([#42651](https://github.com/vllm-project/vllm/pull/42651)).
+- Added support for FP8 MoE with the humming backend ([#42540](https://github.com/vllm-project/vllm/pull/42540)).
 
 ## Parallelism & scheduling
-- Improved KV cache handling with the addition of a persistent cache for FlashInfer autotuning, optimizing resource management ([#42527](https://github.com/vllm-project/vllm/pull/42527)).
-- Enhanced support for PP (Pipeline Parallelism) in the Cohere vision model, allowing for better parallel processing ([#42819](https://github.com/vllm-project/vllm/pull/42819)).
+- Enabled full cudagraph capture for Triton MLA decode, improving performance ([#42885](https://github.com/vllm-project/vllm/pull/42885)).
+- Added a persistent cache for FlashInfer autotuning to enhance efficiency ([#42527](https://github.com/vllm-project/vllm/pull/42527)).
 
 ## Model support
-- Added support for OpenVLA, expanding the range of architectures supported by vLLM ([#42654](https://github.com/vllm-project/vllm/pull/42654)).
-- Introduced post-norm architecture support for EAGLE-3 speculators, enhancing model capabilities ([#42764](https://github.com/vllm-project/vllm/pull/42764)).
-- Fixed loading issues for Qwen3.5-MTP and Qwen3-VL models, ensuring smoother operation ([#42716](https://github.com/vllm-project/vllm/pull/42716)).
+- Added support for OpenVLA, enhancing multimodal capabilities ([#42654](https://github.com/vllm-project/vllm/pull/42654)).
+- Improved DeepSeek V4 functionality and accuracy with several bug fixes ([#42810](https://github.com/vllm-project/vllm/pull/42810)).
+- Introduced support for post-norm architecture in EAGLE-3 speculators ([#42764](https://github.com/vllm-project/vllm/pull/42764)).
 
 ## API & serving
-- Added API key authorization to /v2 endpoints, improving security for API interactions ([#42594](https://github.com/vllm-project/vllm/pull/42594)).
-- Updated MooncakeStoreConnector to support disk offloading, enhancing data management capabilities ([#42889](https://github.com/vllm-project/vllm/pull/42889)).
+- Forwarded `X-data-parallel-rank` header on inference endpoint to improve parallel processing ([#42347](https://github.com/vllm-project/vllm/pull/42347)).
+- Added CLI options for `--spec-method`, `--spec-model`, and `--spec-tokens` for better user control ([#42476](https://github.com/vllm-project/vllm/pull/42476)).
 
 ## Watch list
-- Monitor ongoing discussions regarding the integration of Rust front-end features and potential impacts on existing workflows ([#40848](https://github.com/vllm-project/vllm/pull/40848)).
+- Ongoing discussions about the removal of dead code and its implications on future development ([#43144](https://github.com/vllm-project/vllm/pull/43144)).
+- Monitoring the integration of the Rust frontend and its impact on existing workflows ([#40848](https://github.com/vllm-project/vllm/pull/40848)).
 
-## PRs merged this window (208)
+## PRs merged this window (209)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43427](https://github.com/vllm-project/vllm/pull/43427) [Bugfix] Detect wrong libcute_dsl_runtime.so variant in FlashInfer GDN — @arpera → `nan`
+- [#40733](https://github.com/vllm-project/vllm/pull/40733) [RFC][EPLB][#32028] Remove dead torch.accelerator.synchronize() from sync path — @SandishKumarHN → `nan`
+- [#43426](https://github.com/vllm-project/vllm/pull/43426) [Frontend] Simplify AuthenticationMiddleware path extraction — @russellb → `nan`
 - [#43149](https://github.com/vllm-project/vllm/pull/43149) [Refactor] Extract DeepSeek V4 sparse MLA impl into model folder — @zyongye → `nan`
 - [#43371](https://github.com/vllm-project/vllm/pull/43371) [KV Connector] MooncakeStore: don't co-queue save with load to avoid double delayed-free — @Dao007forever → `nan`
 - [#42650](https://github.com/vllm-project/vllm/pull/42650) [Bugfix] Source num_qo_heads from Attention layers in Flashinfer/Triton metadata builders — @zhandaz → `nan`
@@ -91,9 +96,6 @@ This week saw significant enhancements in model support and performance optimiza
 - [#43245](https://github.com/vllm-project/vllm/pull/43245) [Benchmark] Add num-warmup to vllm bench throughput — @yzong-rh → `nan`
 - [#42905](https://github.com/vllm-project/vllm/pull/42905) [Bugfix] Warn when renderer_num_workers has no effect on offline LLM — @DaoyuanLi2816 → `nan`
 - [#40848](https://github.com/vllm-project/vllm/pull/40848) [Frontend][RFC] Rust front-end integration — @njhill → `nan`
-- [#38973](https://github.com/vllm-project/vllm/pull/38973) [ToolParser][Bugfix] Re-land: Fix anyOf/oneOf/$ref type resolution in Qwen3CoderToolParser (#37831) — @AAISSJ → `nan`
-- [#43140](https://github.com/vllm-project/vllm/pull/43140) [Refactor] Use shared coerce_to_schema_type in Seed-OSS tool parser — @sfeng33 → `nan`
-- [#42664](https://github.com/vllm-project/vllm/pull/42664) [Frontend] Normalize reasoning_content to reasoning for client compatibility — @bbrowning → `nan`
-- _…and 148 more_
+- _…and 149 more_
 
 </details>
