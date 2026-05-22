@@ -21,7 +21,15 @@ from .analyzer.queries import (
     releases_df, prs_df, commits_df, classify_pr_by_title, merge_time_stats,
 )
 from .db import connect
-from .models import classify as classify_model, hf_org_url, hf_search_url, looks_like_model_section
+from .models import (
+    FOCUS_VENDORS,
+    classify as classify_model,
+    hf_org_url,
+    hf_search_url,
+    is_focus_vendor,
+    looks_like_model_section,
+    vendor_tech,
+)
 from .summarize import link_refs
 
 
@@ -71,6 +79,34 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #ddd3;
 .release-summary li { margin: .25rem 0; }
 .release-summary .meta { display: block; margin-top: 1rem;
                          font-size: .75rem; opacity: .55; }
+
+/* Supported-models / vLLM compatibility cards */
+.models-intro { font-size: .9rem; opacity: .75; margin: .2rem 0 1rem; }
+.vendor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+               gap: .9rem; margin: .6rem 0 1.4rem; }
+.vendor-card { border: 1px solid #ddd5; border-radius: 8px; padding: .8rem 1rem;
+               background: rgba(127,127,127,.04); display: flex; flex-direction: column; gap: .55rem; }
+.vendor-card .vendor-head { display: flex; align-items: baseline; gap: .5rem;
+                            flex-wrap: wrap; }
+.vendor-card .vendor-name { font-size: 1.05rem; font-weight: 600; }
+.vendor-card .vendor-name a { text-decoration: none; }
+.vendor-card .vendor-name a:hover { text-decoration: underline; }
+.vendor-card .tagline { font-size: .85rem; opacity: .75; margin: 0; }
+.vendor-card .row-label { font-size: .68rem; font-weight: 600;
+                          text-transform: uppercase; letter-spacing: .08em;
+                          opacity: .55; margin-right: .35rem; }
+.vendor-card .row { font-size: .8rem; line-height: 1.7; }
+.pill { display: inline-block; padding: .05rem .45rem; margin: 0 .2rem .2rem 0;
+        border-radius: 10px; border: 1px solid #8884; font-size: .72rem;
+        background: rgba(127,127,127,.07); white-space: nowrap; }
+.pill.arch { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+             font-size: .68rem; border-color: #6cf6; background: rgba(102,204,255,.08); }
+.pill.modal { text-transform: capitalize; border-color: #9c6f; background: rgba(160,120,255,.1); }
+.pill.feat  { border-color: #6c96; background: rgba(102,200,150,.08); }
+.vendor-card .new-list { margin: .25rem 0 0; padding-left: 1.1rem; font-size: .82rem; }
+.vendor-card .new-list li { margin: .15rem 0; }
+.vendor-card .no-new { font-size: .78rem; opacity: .55; font-style: italic; margin: 0; }
+.vendor-card .series { font-size: .72rem; opacity: .6; }
 """
 
 
@@ -81,6 +117,161 @@ def _fig_html(fig, div_id: str) -> str:
 
 def _card(value: str, label: str) -> str:
     return f'<div class="card"><div class="v">{escape(value)}</div><div class="l">{escape(label)}</div></div>'
+
+
+def _item_to_html(item: str, repo: str) -> str:
+    """Render a single release-note item: link PR refs and markdown links."""
+    html = link_refs(item, repo)
+    html = re.sub(
+        r"\[([^\]]+)\]\(([^)]+)\)",
+        r'<a href="\2" target="_blank" rel="noopener">\1</a>',
+        html,
+    )
+    return html
+
+
+def _render_focus_grid(
+    by_focus: dict[str, list[tuple[str, str]]],
+    repo: str,
+) -> str:
+    """Render a grid of tech cards for the curated focus vendors.
+
+    Each card always renders (independent of whether the current release added
+    a model from that vendor) so the page reads as a stable vLLM-compatibility
+    matrix rather than a sparse "what's new" list.
+    """
+    cards: list[str] = []
+    for vendor in FOCUS_VENDORS:
+        tech = vendor_tech(vendor) or {}
+        items = by_focus.get(vendor, [])
+
+        # Vendor name + HF org link
+        org_slug = items[0][1] if items else None
+        if not org_slug:
+            # Fall back to the slug baked into the rule table
+            from .models import VENDOR_RULES
+            for _, vname, oslug in VENDOR_RULES:
+                if vname == vendor:
+                    org_slug = oslug
+                    break
+        if org_slug:
+            head = (
+                f'<a href="{hf_org_url(org_slug)}" target="_blank" '
+                f'rel="noopener">{escape(vendor)}</a>'
+            )
+        else:
+            head = escape(vendor)
+
+        archs = "".join(
+            f'<span class="pill arch">{escape(a)}</span>' for a in tech.get("archs", [])
+        )
+        modals = "".join(
+            f'<span class="pill modal">{escape(m)}</span>' for m in tech.get("modal", [])
+        )
+        feats = "".join(
+            f'<span class="pill feat">{escape(f)}</span>' for f in tech.get("features", [])
+        )
+        series = tech.get("series") or []
+        series_html = (
+            f'<div class="series">Series: {escape(" · ".join(series))}</div>'
+            if series else ""
+        )
+
+        if items:
+            lis = []
+            for item, _org in items:
+                inner = _item_to_html(item, repo)
+                hf = (
+                    f' <a href="{hf_search_url(item)}" target="_blank" '
+                    f'rel="noopener" title="Find on Hugging Face">[HF]</a>'
+                )
+                lis.append(f"<li>{inner}{hf}</li>")
+            new_block = (
+                f'<div class="row"><span class="row-label">'
+                f'New in this release ({len(items)})</span></div>'
+                f'<ul class="new-list">{"".join(lis)}</ul>'
+            )
+        else:
+            new_block = '<p class="no-new">No new entries in this release.</p>'
+
+        tagline = tech.get("tagline", "")
+        cards.append(
+            '<div class="vendor-card">'
+            f'<div class="vendor-head"><span class="vendor-name">{head}</span></div>'
+            + (f'<p class="tagline">{escape(tagline)}</p>' if tagline else "")
+            + (
+                f'<div class="row"><span class="row-label">vLLM arch</span>{archs}</div>'
+                if archs else ""
+            )
+            + (
+                f'<div class="row"><span class="row-label">Modalities</span>{modals}</div>'
+                if modals else ""
+            )
+            + (
+                f'<div class="row"><span class="row-label">Engine features</span>{feats}</div>'
+                if feats else ""
+            )
+            + series_html
+            + new_block
+            + "</div>"
+        )
+
+    return '<div class="vendor-grid">' + "\n".join(cards) + "</div>"
+
+
+def _render_other_block(
+    by_other: dict[str, list[tuple[str, str | None]]],
+    unknown_items: list[str],
+    repo: str,
+) -> str:
+    """Collapsed fallback listing every non-focus vendor + unclassified items."""
+    if not by_other and not unknown_items:
+        return ""
+
+    chunks: list[str] = []
+    for vendor in sorted(by_other.keys()):
+        items = by_other[vendor]
+        org = items[0][1]
+        vendor_link = (
+            f'<a href="{hf_org_url(org)}" target="_blank" rel="noopener">{escape(vendor)}</a>'
+            if org else escape(vendor)
+        )
+        lis = []
+        for item, _org in items:
+            inner = _item_to_html(item, repo)
+            hf = (
+                f' <a href="{hf_search_url(item)}" target="_blank" '
+                f'rel="noopener" title="Find on Hugging Face">[HF]</a>'
+            )
+            lis.append(f"<li>{inner}{hf}</li>")
+        chunks.append(
+            f'<li><strong>{vendor_link}</strong> '
+            f'<span style="opacity:.6">({len(items)})</span>'
+            f'<ul>{"".join(lis)}</ul></li>'
+        )
+
+    if unknown_items:
+        lis = []
+        for item in unknown_items:
+            inner = _item_to_html(item, repo)
+            hf = (
+                f' <a href="{hf_search_url(item)}" target="_blank" rel="noopener">[HF]</a>'
+            )
+            lis.append(f"<li>{inner}{hf}</li>")
+        chunks.append(
+            f'<li><strong>Unclassified</strong> '
+            f'<span style="opacity:.6">({len(unknown_items)})</span>'
+            f'<ul>{"".join(lis)}</ul></li>'
+        )
+
+    total = sum(len(v) for v in by_other.values()) + len(unknown_items)
+    return (
+        f'<details style="margin-top:1rem">'
+        f'<summary><strong>Other vendors in {escape("this release")}</strong> '
+        f'<span style="opacity:.6">({total})</span></summary>'
+        f'<ul style="padding-left:1.2rem">{"".join(chunks)}</ul>'
+        f'</details>'
+    )
 
 
 def _render_latest_release(db_path: Path, repo: str) -> str:
@@ -107,65 +298,29 @@ def _render_latest_release(db_path: Path, repo: str) -> str:
     rel_url = latest["url"] or f"https://github.com/{repo}/releases/tag/{tag}"
     name = latest.get("name") or tag
 
-    # Group items from model-related sections by detected vendor
-    by_vendor: dict[str, list[tuple[str, str | None]]] = {}
+    # Group items from model-related sections by detected vendor. We split into
+    # the curated focus vendors (Qwen / DeepSeek / MiniMax / GLM / Meta / Google
+    # / Microsoft) and a single "other" bucket for everything else.
+    by_focus: dict[str, list[tuple[str, str]]] = {}
+    by_other: dict[str, list[tuple[str, str | None]]] = {}
     unknown_items: list[str] = []
     for s in sections:
         if not looks_like_model_section(s["section"]):
             continue
         item = s["item"]
         cls = classify_model(item)
-        if cls:
-            vendor, org = cls
-            by_vendor.setdefault(vendor, []).append((item, org))
-        else:
+        if not cls:
             unknown_items.append(item)
+            continue
+        vendor, org = cls
+        if is_focus_vendor(vendor):
+            by_focus.setdefault(vendor, []).append((item, org))
+        else:
+            by_other.setdefault(vendor, []).append((item, org))
 
-    # Build vendor list HTML
-    vendor_html = ""
-    if by_vendor or unknown_items:
-        chunks = []
-        for vendor in sorted(by_vendor.keys()):
-            items = by_vendor[vendor]
-            org = items[0][1]
-            vendor_link = f'<a href="{hf_org_url(org)}" target="_blank" rel="noopener">{escape(vendor)}</a>' if org else escape(vendor)
-            li = []
-            for item, _org in items:
-                # Hyperlink PR refs inside the item text (uses repo, not HF)
-                item_html = link_refs(item, repo)
-                # Convert markdown [text](url) to <a> for inline rendering
-                item_html = re.sub(
-                    r"\[([^\]]+)\]\(([^)]+)\)",
-                    r'<a href="\2" target="_blank" rel="noopener">\1</a>',
-                    item_html,
-                )
-                # Add an HF search link for the model name itself
-                hf_link = f' <a href="{hf_search_url(item)}" target="_blank" rel="noopener" title="Find on Hugging Face">[HF]</a>'
-                li.append(f"<li>{item_html}{hf_link}</li>")
-            chunks.append(
-                f"<details open><summary><strong>{vendor_link}</strong> "
-                f"<span style='opacity:.6'>({len(items)})</span></summary>"
-                f"<ul>{''.join(li)}</ul></details>"
-            )
-        if unknown_items:
-            li = []
-            for item in unknown_items:
-                item_html = link_refs(item, repo)
-                item_html = re.sub(
-                    r"\[([^\]]+)\]\(([^)]+)\)",
-                    r'<a href="\2" target="_blank" rel="noopener">\1</a>',
-                    item_html,
-                )
-                hf_link = f' <a href="{hf_search_url(item)}" target="_blank" rel="noopener">[HF]</a>'
-                li.append(f"<li>{item_html}{hf_link}</li>")
-            chunks.append(
-                f"<details><summary><strong>Other / unclassified</strong> "
-                f"<span style='opacity:.6'>({len(unknown_items)})</span></summary>"
-                f"<ul>{''.join(li)}</ul></details>"
-            )
-        vendor_html = "\n".join(chunks)
-    else:
-        vendor_html = "<p><em>No model-support section found in this release's notes.</em></p>"
+    vendor_html = _render_focus_grid(by_focus, repo) + _render_other_block(
+        by_other, unknown_items, repo
+    )
 
     published = latest["published_at"][:10] if latest.get("published_at") else "?"
 
@@ -192,7 +347,15 @@ def _render_latest_release(db_path: Path, repo: str) -> str:
   <span style="opacity:.7">· published {escape(published)}</span>
 </p>
 {summary_html}
-<h3>Supported models (added or highlighted in {escape(tag)})</h3>
+<h3>Supported models &mdash; vLLM compatibility focus</h3>
+<p class="models-intro">
+  Curated view of how vLLM serves the model families we track most closely:
+  Qwen, DeepSeek, MiniMax, GLM, plus the US top-3 open-source families
+  (Llama, Gemma, Phi). Each card lists the vLLM <code>architectures</code>
+  class names you'd pass to <code>--model</code>, supported modalities and the
+  engine/quant features that light up. New entries from {escape(tag)} are
+  highlighted inline.
+</p>
 {vendor_html}
 """
 
