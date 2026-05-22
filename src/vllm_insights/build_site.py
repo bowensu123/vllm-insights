@@ -219,61 +219,6 @@ def _render_focus_grid(
     return '<div class="vendor-grid">' + "\n".join(cards) + "</div>"
 
 
-def _render_other_block(
-    by_other: dict[str, list[tuple[str, str | None]]],
-    unknown_items: list[str],
-    repo: str,
-) -> str:
-    """Collapsed fallback listing every non-focus vendor + unclassified items."""
-    if not by_other and not unknown_items:
-        return ""
-
-    chunks: list[str] = []
-    for vendor in sorted(by_other.keys()):
-        items = by_other[vendor]
-        org = items[0][1]
-        vendor_link = (
-            f'<a href="{hf_org_url(org)}" target="_blank" rel="noopener">{escape(vendor)}</a>'
-            if org else escape(vendor)
-        )
-        lis = []
-        for item, _org in items:
-            inner = _item_to_html(item, repo)
-            hf = (
-                f' <a href="{hf_search_url(item)}" target="_blank" '
-                f'rel="noopener" title="Find on Hugging Face">[HF]</a>'
-            )
-            lis.append(f"<li>{inner}{hf}</li>")
-        chunks.append(
-            f'<li><strong>{vendor_link}</strong> '
-            f'<span style="opacity:.6">({len(items)})</span>'
-            f'<ul>{"".join(lis)}</ul></li>'
-        )
-
-    if unknown_items:
-        lis = []
-        for item in unknown_items:
-            inner = _item_to_html(item, repo)
-            hf = (
-                f' <a href="{hf_search_url(item)}" target="_blank" rel="noopener">[HF]</a>'
-            )
-            lis.append(f"<li>{inner}{hf}</li>")
-        chunks.append(
-            f'<li><strong>Unclassified</strong> '
-            f'<span style="opacity:.6">({len(unknown_items)})</span>'
-            f'<ul>{"".join(lis)}</ul></li>'
-        )
-
-    total = sum(len(v) for v in by_other.values()) + len(unknown_items)
-    return (
-        f'<details style="margin-top:1rem">'
-        f'<summary><strong>Other vendors in {escape("this release")}</strong> '
-        f'<span style="opacity:.6">({total})</span></summary>'
-        f'<ul style="padding-left:1.2rem">{"".join(chunks)}</ul>'
-        f'</details>'
-    )
-
-
 def _render_latest_release(db_path: Path, repo: str) -> str:
     """Section showing the latest stable release + LLM summary + supported models."""
     import markdown as md
@@ -298,29 +243,22 @@ def _render_latest_release(db_path: Path, repo: str) -> str:
     rel_url = latest["url"] or f"https://github.com/{repo}/releases/tag/{tag}"
     name = latest.get("name") or tag
 
-    # Group items from model-related sections by detected vendor. We split into
-    # the curated focus vendors (Qwen / DeepSeek / MiniMax / GLM / Meta / Google
-    # / Microsoft) and a single "other" bucket for everything else.
+    # Group items from model-related sections by detected vendor. We only
+    # surface entries that belong to one of the curated focus vendors
+    # (Qwen / DeepSeek / MiniMax / GLM / Meta / Google / Microsoft); everything
+    # else from the release notes is intentionally dropped from this section.
     by_focus: dict[str, list[tuple[str, str]]] = {}
-    by_other: dict[str, list[tuple[str, str | None]]] = {}
-    unknown_items: list[str] = []
     for s in sections:
         if not looks_like_model_section(s["section"]):
             continue
-        item = s["item"]
-        cls = classify_model(item)
+        cls = classify_model(s["item"])
         if not cls:
-            unknown_items.append(item)
             continue
         vendor, org = cls
         if is_focus_vendor(vendor):
-            by_focus.setdefault(vendor, []).append((item, org))
-        else:
-            by_other.setdefault(vendor, []).append((item, org))
+            by_focus.setdefault(vendor, []).append((s["item"], org))
 
-    vendor_html = _render_focus_grid(by_focus, repo) + _render_other_block(
-        by_other, unknown_items, repo
-    )
+    vendor_html = _render_focus_grid(by_focus, repo)
 
     published = latest["published_at"][:10] if latest.get("published_at") else "?"
 
