@@ -35,80 +35,96 @@ def link_refs(text: str, repo: str) -> str:
 
 WEEKLY_SYSTEM = dedent("""
     You are a release-notes editor for vLLM (a high-throughput LLM inference engine).
-    You will receive raw release notes and merged PRs from the past week. Produce a tight
-    markdown summary for a vLLM-savvy engineer who wants to know what changed and why it matters.
+    You will receive raw release notes and merged PRs from the past week. Produce a
+    theme-sliced digest for a vLLM-savvy engineer who is deciding what to track,
+    test or upgrade.
 
-    Output sections (omit any that have no content):
-      ## Highlights — 3-6 bullets of the most impactful items
-      ## New model support
-      ## Performance & kernels
-      ## Hardware (AMD/TPU/CPU/...)
-      ## API & serving
-      ## Notable bug fixes
-      ## Breaking changes
+    Output GitHub-flavored markdown. Use exactly these level-2 sections in this order;
+    OMIT any section that has nothing material this window (don't write "nothing this
+    week" — just leave the section out):
+
+    ## TL;DR
+    Two to four sentences of plain prose. What was the overall shape of the week — perf,
+    model coverage, hardware, infra? Anyone who reads only this paragraph should know
+    whether the week is worth investigating.
+
+    ## Kernels & attention
+    1-4 bullets on FlashAttention/FlashInfer, MLA, Lightning Attention, custom CUDA kernels.
+
+    ## Quantization
+    1-4 bullets on FP8 / FP4 / AWQ / GPTQ / GGUF / BnB work, calibration, kernel speedups.
+
+    ## Parallelism & scheduling
+    1-4 bullets on TP/PP/EP/SP, chunked prefill, prefix caching, PD disaggregation, KV transfer.
+
+    ## Model support
+    1-4 bullets on new architectures, multimodal, audio, embedding/reward, deprecations.
+
+    ## Hardware
+    1-4 bullets on AMD/MI300X, TPU, Trainium, CPU, Blackwell-specific work.
+
+    ## API & serving
+    1-4 bullets on OpenAI-compatible API, tool calling, structured outputs, observability.
+
+    ## Watch list
+    1-3 bullets flagging RFCs / contentious threads / breaking changes worth following.
 
     Rules:
-    - Cite items with PR refs `#1234` or tag refs `v0.x.y` inline. Don't fabricate numbers.
-    - Be terse: each bullet ≤ 1 line. No filler.
-    - Skip pure docs/CI churn unless notable.
+    - Each bullet ≤ 1 line. No filler.
+    - Cite PRs as `#1234` inline. Don't fabricate numbers.
+    - Skip CI / lint / docs unless notable.
+    - Place each PR under the single most-relevant theme; don't double-list.
 """).strip()
 
 
 # Bump when RELEASE_SYSTEM changes meaningfully — invalidates cached summaries.
-RELEASE_PROMPT_VERSION = "v3"
+RELEASE_PROMPT_VERSION = "v4"
 
 
 RELEASE_SYSTEM = dedent("""
-    You are summarizing one vLLM release for engineers who want a quick overview
-    before reading the full notes. You will receive the raw release-notes markdown.
+    You are advising a vLLM operator on whether to upgrade to this release. You will
+    receive the raw release-notes markdown. Your job is to answer their decision,
+    not to paraphrase the notes.
 
-    A separate, structured "Supported models" section is rendered elsewhere on the page,
-    so DO NOT list individual added models here. You may mention "expanded model coverage"
-    in the overview at a high level, but no per-model bullets.
+    A separate "Supported models" card grid and a "Capability matrix" are rendered
+    elsewhere on the page. Do NOT list individual added models here. Do NOT restate
+    "expanded model coverage" as a bullet — it's covered already.
 
-    Output GitHub-flavored markdown with exactly these three level-3 headings, in this order
-    (omit "Upgrade notes" if there is nothing material):
+    Output GitHub-flavored markdown with these level-3 headings in this order. Sections
+    are required unless explicitly marked optional.
 
-    ### Overview
-    Two to three sentences. Plain prose, no bullets. State what this release is about,
-    who should care, and any headline change. You may briefly note "expanded model coverage"
-    without naming specific models.
+    ### Verdict
+    One line in bold, picked from exactly one of:
+      **Upgrade.**  /  **Upgrade with caveats.**  /  **Wait.**  /  **Skip.**
+    Followed by one short sentence justifying it. No bullets.
 
-    ### Key changes
-    Four to seven bullets covering NON-model topics only. Prefix each bullet with an inline-bold
-    label, one of: **Performance:**, **Hardware:**, **Quantization:**, **API & serving:**,
-    **Engine/scheduler:**. Each bullet ≤ 1 line. Cite PR refs `#1234` inline.
+    ### Who should upgrade
+    Two to four bullets. Each bullet describes a concrete profile of user/workload
+    and whether this release is a win for them (e.g. "DeepSeek-V3 operators on H100 —
+    yes, MLA + DeepEP perf wins land here").
 
-    ### Upgrade notes
-    One to three bullets covering deprecations, breaking changes, or behavior shifts users
-    must watch out for. Omit this entire section (heading and all) if there are none.
+    ### Likely to break
+    Two to four bullets covering deprecations, default flips, behavior changes, removed
+    APIs, or load-bearing perf regressions. If genuinely nothing breaks, write ONE
+    bullet: "- Nothing material — drop-in upgrade." Do NOT omit this section.
+
+    ### Performance & infra changes (optional)
+    Up to four bullets summarising perf, kernel, quantization, scheduler, or hardware
+    work. Each bullet prefixed with an inline-bold label, one of: **Performance:**,
+    **Quantization:**, **Kernels:**, **Scheduler:**, **Hardware:**, **API:**.
+    Cite PR refs `#1234` inline. Omit this whole section if there's nothing
+    non-trivial to report.
 
     Rules:
-    - Don't fabricate PRs or features. Stick to what's in the notes.
-    - Skip pure docs/CI churn unless headline-worthy.
-    - Do NOT include "Model support" or "New models" bullets — those are handled separately.
+    - Don't fabricate PRs, models or features. Stick to what's in the notes.
+    - Skip pure docs/CI churn.
     - Do NOT include the release title or any H1/H2 heading (caller adds those).
-    - No preamble, no closing remarks — start directly with `### Overview`.
+    - No preamble, no closing remarks — start directly with `### Verdict`.
 """).strip()
 
 
-DAILY_SYSTEM = dedent("""
-    You are summarizing one day of activity in the vLLM repo for engineers tracking the project.
-    You will receive the day's merged PRs and any release that landed.
-
-    Produce a concise markdown digest:
-      ## What landed today
-      - 5-10 bullets, grouped loosely by theme (model support / kernels / perf / bug fixes / API)
-      - Each bullet: terse, with PR ref `#1234` inline
-    ## Notable
-      - 1-3 items worth a second look (breaking changes, big perf wins, new hardware, new model families)
-      - Omit this section if nothing qualifies.
-
-    Rules:
-    - Don't fabricate PR numbers or tags.
-    - Skip pure CI / lint / docs unless they're load-bearing.
-    - If the day had no merges, output: "_No merges today._"
-""").strip()
+# DAILY_SYSTEM has been removed. We no longer emit per-day digests — see
+# WEEKLY_SYSTEM, which is theme-sliced and the only digest the site renders.
 
 
 def collect_window(db_path: Path, days: int) -> dict:
@@ -216,7 +232,12 @@ def summarize_window(
 ) -> str:
     backend = _detect_backend(backend)
     model = model or os.getenv("LLM_MODEL") or DEFAULT_MODELS[backend]
-    system = DAILY_SYSTEM if days <= 1 else WEEKLY_SYSTEM
+    # Only a weekly theme-sliced digest is supported. We clamp very-short windows
+    # to 7 days so callers passing days=1 still get useful output instead of
+    # whatever the upstream prompt does with an empty payload.
+    if days < 3:
+        days = 7
+    system = WEEKLY_SYSTEM
 
     payload = collect_window(db_path, days=days)
     user_input = render_input(payload)

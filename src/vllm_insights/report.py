@@ -1,116 +1,103 @@
-"""Generate a daily markdown report from the SQLite cache."""
+"""Weekly themed digest.
+
+We used to emit one markdown file per day. That's noise — most days the only
+thing in a vLLM repo is 20 incremental PRs none of which deserve a reader's
+attention. We now emit a single themed weekly digest, written under
+`docs/weekly/`:
+
+  - The LLM section is theme-sliced (Kernels & attention / Quantization /
+    Parallelism & scheduling / Model support / Hardware / API & serving /
+    Watch list) so each section answers a specific operator question.
+  - The "stats" tables (PR-tech bar chart, top committers, monthly merge time)
+    used to live here but they duplicate the homepage charts; they're gone.
+
+The legacy `generate_daily_report` name is kept as an alias because the GH
+Actions workflow still calls it during the rollout.
+"""
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
 
-from .analyzer.queries import (
-    releases_df, prs_df, commits_df, classify_pr_by_title, merge_time_stats,
-)
+from .analyzer.queries import releases_df, prs_df
 
 
-def generate_daily_report(
+def generate_weekly_digest(
     db_path: Path,
     days: int = 7,
     repo: str = "vllm-project/vllm",
-    include_llm: bool = False,
-    llm_days: int = 1,
+    include_llm: bool = True,
     llm_backend: str | None = None,
     llm_model: str | None = None,
 ) -> str:
+    """Produce the weekly themed digest as markdown."""
     now = datetime.now(timezone.utc)
-    since = pd.Timestamp(now - timedelta(days=days))   # already tz-aware
+    since = pd.Timestamp(now - timedelta(days=days))   # tz-aware
 
-    rel = releases_df(db_path)
-    prs = prs_df(db_path)
-    cm = commits_df(db_path)
+    iso_year, iso_week, _ = now.isocalendar()
+    lines: list[str] = [
+        f"# vLLM weekly digest — {now:%Y-%m-%d} (W{iso_week:02d})",
+        "",
+        f"_Window: last {days} days · upstream: [{repo}](https://github.com/{repo})_",
+        "",
+    ]
 
-    lines: list[str] = [f"# vLLM activity report — {now:%Y-%m-%d}", ""]
-
-    # ----- LLM digest (optional, at top) -----
+    # ----- LLM themed digest at the top (the actual content) -----
     if include_llm:
         from .summarize import summarize_window
         try:
             digest = summarize_window(
-                db_path, days=llm_days, model=llm_model,
+                db_path, days=days, model=llm_model,
                 backend=llm_backend, repo=repo, include_header=False,
             )
-            lines += ["## LLM digest", "", digest.strip(), ""]
+            lines += [digest.strip(), ""]
         except Exception as e:
-            lines += ["## LLM digest", "", f"_Skipped: {type(e).__name__}: {e}_", ""]
+            lines += [
+                f"_LLM digest skipped: {type(e).__name__}: {e}_",
+                "",
+            ]
 
-    # ----- Summary cards -----
-    lines += ["## Summary", ""]
-    lines += [f"- **Releases (all-time):** {len(rel)}"]
-    if not rel.empty:
-        lines += [f"- **Latest release:** [`{rel.iloc[-1]['tag']}`]({rel.iloc[-1]['url']}) "
-                  f"on {rel.iloc[-1]['published_at']:%Y-%m-%d}"]
-        med = rel["interval_days"].dropna().median()
-        if pd.notna(med):
-            lines += [f"- **Median release interval:** {med:.1f} days"]
-    lines += [f"- **PRs (all-time):** {len(prs)}"]
-    if not prs.empty:
-        merged = prs.dropna(subset=["merged_at"])
-        recent_merged = merged[merged["merged_at"] >= since]
-        lines += [f"- **PRs merged in last {days}d:** {len(recent_merged)}"]
-        med_h = merged["merge_hours"].dropna().median()
-        if pd.notna(med_h):
-            lines += [f"- **Median merge time (all-time):** {med_h:.1f} h"]
-    lines += [f"- **Commits (cached):** {len(cm)}"]
-    lines += [""]
-
-    # ----- Recent releases -----
+    # ----- Releases that landed in the window -----
+    rel = releases_df(db_path)
     if not rel.empty:
         recent_rel = rel[rel["published_at"] >= since]
         if not recent_rel.empty:
-            lines += [f"## Releases in last {days} days", ""]
+            lines += [f"## Releases this window", ""]
             for _, r in recent_rel.iterrows():
-                lines += [f"- [`{r['tag']}`]({r['url']}) — {r['published_at']:%Y-%m-%d}"]
+                lines += [
+                    f"- [`{r['tag']}`]({r['url']}) — {r['published_at']:%Y-%m-%d %H:%M UTC}"
+                ]
             lines += [""]
 
-    # ----- PR tech distribution (last N days) -----
-    if not prs.empty:
-        window = prs[prs["created_at"] >= since].copy()
-        if not window.empty:
-            window["tech"] = window["title"].apply(classify_pr_by_title)
-            dist = window.groupby("tech").size().sort_values(ascending=False)
-            lines += [f"## PR activity by tech area (last {days} days)", "",
-                      "| Area | PRs |", "|---|---:|"]
-            for area, n in dist.items():
-                lines += [f"| {area} | {n} |"]
-            lines += [""]
-
-    # ----- Top merged PRs -----
+    # ----- Top merged PRs in the window (terse — the LLM digest carries the narrative) -----
+    prs = prs_df(db_path)
     if not prs.empty:
         merged = prs.dropna(subset=["merged_at"])
         recent = merged[merged["merged_at"] >= since].sort_values("merged_at", ascending=False)
         if not recent.empty:
-            lines += [f"## Recently merged PRs (last {days} days, top 30)", ""]
-            for _, p in recent.head(30).iterrows():
+            lines += [
+                f"## PRs merged this window ({len(recent)})",
+                "",
+                "<details><summary>Click to expand the raw list</summary>",
+                "",
+            ]
+            for _, p in recent.head(60).iterrows():
                 rel_tag = f" → `{p['release_tag']}`" if p.get("release_tag") else ""
-                lines += [f"- [#{p['number']}]({p['url']}) {p['title']} "
-                          f"— @{p['author']}{rel_tag}"]
-            lines += [""]
-
-    # ----- Top contributors -----
-    if not cm.empty:
-        recent_cm = cm[cm["committed_at"] >= since]
-        if not recent_cm.empty:
-            top = recent_cm.groupby("author").size().sort_values(ascending=False).head(10)
-            lines += [f"## Top committers (last {days} days)", "",
-                      "| Author | Commits |", "|---|---:|"]
-            for a, n in top.items():
-                lines += [f"| {a} | {n} |"]
-            lines += [""]
-
-    # ----- Monthly merge time trend -----
-    if not prs.empty:
-        stats = merge_time_stats(prs)
-        if not stats.empty:
-            lines += ["## Merge time trend (last 12 months)", "",
-                      "| Month | Median (h) | PRs merged |", "|---|---:|---:|"]
-            for _, row in stats.tail(12).iterrows():
-                lines += [f"| {row['month']} | {row['median']:.1f} | {int(row['count'])} |"]
-            lines += [""]
+                lines += [
+                    f"- [#{p['number']}]({p['url']}) {p['title']} "
+                    f"— @{p['author']}{rel_tag}"
+                ]
+            if len(recent) > 60:
+                lines += [f"- _…and {len(recent) - 60} more_"]
+            lines += ["", "</details>", ""]
 
     return "\n".join(lines)
+
+
+# Backwards-compat alias — the workflow currently imports this name.
+def generate_daily_report(*args, **kwargs):  # pragma: no cover - thin shim
+    """Deprecated alias for `generate_weekly_digest`. Kept so the workflow keeps
+    working through the rollout. Drop after the workflow is updated."""
+    # Old kwargs: include_llm, llm_days, llm_backend, llm_model
+    kwargs.pop("llm_days", None)
+    return generate_weekly_digest(*args, **kwargs)

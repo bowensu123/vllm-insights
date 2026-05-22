@@ -230,3 +230,48 @@ def is_focus_vendor(vendor: str) -> bool:
 
 def vendor_tech(vendor: str) -> dict | None:
     return VENDOR_TECH.get(vendor)
+
+
+_CAMEL_SPLIT_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
+
+# Architecture class names that the CamelCase-split heuristic can't classify
+# because the vendor name is glued to or split across other tokens (e.g.
+# `Mllama` has no word boundary before "llama"; `MiniMax` splits into two
+# tokens). Keep this list tight — prefer extending the regex rules in
+# VENDOR_RULES when a generic pattern is possible.
+_ARCH_VENDOR_OVERRIDES: dict[str, str] = {
+    "Mllama": "Meta",
+    "MiniMax": "MiniMax",
+}
+
+
+def classify_arch(arch_class: str) -> tuple[str, str] | None:
+    """Classify a vLLM architecture class name (e.g. 'Qwen3MoeForCausalLM') back
+    to its vendor. We try several normalisations because CamelCase split alone
+    misses cases like `Mllama*` (no boundary before "llama") and `MiniMax*`
+    (vendor name straddles a capital-letter boundary)."""
+    forms = [
+        _CAMEL_SPLIT_RE.sub(" ", arch_class),       # 'Qwen 3 Moe For Causal LM'
+        arch_class,                                  # 'Qwen3MoeForCausalLM'
+        arch_class.lower(),                          # 'qwen3moeforcausallm'
+    ]
+    for form in forms:
+        hit = classify(form)
+        if hit:
+            return hit
+    # Hard-coded overrides for class names that don't carry the vendor
+    # spelling we match on.
+    for needle, vendor in _ARCH_VENDOR_OVERRIDES.items():
+        if arch_class.startswith(needle):
+            tech = VENDOR_TECH.get(vendor)
+            if tech is None:
+                # Best-effort HF org slug from the rule table
+                for _pat, vname, oslug in VENDOR_RULES:
+                    if vname == vendor:
+                        return vendor, oslug
+                return vendor, ""
+            for _pat, vname, oslug in VENDOR_RULES:
+                if vname == vendor:
+                    return vendor, oslug
+            return vendor, ""
+    return None

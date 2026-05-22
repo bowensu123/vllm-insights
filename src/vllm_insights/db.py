@@ -70,10 +70,26 @@ CREATE TABLE IF NOT EXISTS release_summaries (
 );
 
 CREATE TABLE IF NOT EXISTS sync_state (
-    entity          TEXT PRIMARY KEY,        -- 'releases' | 'prs' | 'commits'
+    entity          TEXT PRIMARY KEY,        -- 'releases' | 'prs' | 'commits' | 'registry'
     last_synced_at  TEXT NOT NULL,
     cursor          TEXT
 );
+
+-- Snapshot of vllm/model_executor/models/registry.py parsed from upstream main.
+-- One row per architecture-class entry across all internal dicts. We re-sync this
+-- on every run; rows missing from a fresh fetch get `removed_at` set instead of
+-- being deleted, so we can spot drops between vLLM versions.
+CREATE TABLE IF NOT EXISTS model_registry (
+    arch_class      TEXT PRIMARY KEY,        -- e.g. 'Qwen3MoeForCausalLM'
+    category        TEXT NOT NULL,           -- 'text' | 'multimodal' | 'embedding' | 'classification' | 'reward' | 'speculative' | 'transcription'
+    module_name     TEXT,                    -- e.g. 'qwen3_moe'
+    impl_class      TEXT,                    -- e.g. 'Qwen3MoeForCausalLM' (often == arch_class)
+    first_seen_at   TEXT NOT NULL,
+    last_seen_at    TEXT NOT NULL,
+    removed_at      TEXT                     -- non-NULL if no longer present upstream
+);
+
+CREATE INDEX IF NOT EXISTS idx_reg_cat ON model_registry(category);
 """
 
 

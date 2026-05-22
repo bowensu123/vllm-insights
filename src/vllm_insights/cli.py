@@ -15,7 +15,8 @@ from .fetcher.prs import sync_prs
 from .fetcher.commits import sync_commits
 from .analyzer.queries import releases_df, prs_df, commits_df
 from .analyzer.linking import link_prs_to_releases
-from .report import generate_daily_report
+from .report import generate_weekly_digest
+from .registry_sync import sync_registry
 from .summarize import summarize_window, summarize_release
 from .build_site import build_index, build_report_index
 
@@ -28,6 +29,8 @@ def sync(
     releases: bool = typer.Option(False, "--releases", help="Sync releases"),
     prs: bool = typer.Option(False, "--prs", help="Sync pull requests (incremental)"),
     commits: bool = typer.Option(False, "--commits", help="Sync commits (incremental)"),
+    registry: bool = typer.Option(False, "--registry",
+                                  help="Mirror upstream vllm/model_executor/models/registry.py"),
     full: bool = typer.Option(False, "--full", help="Ignore last_synced_at and full-refresh"),
     all_: bool = typer.Option(False, "--all", help="Sync everything"),
 ):
@@ -35,9 +38,11 @@ def sync(
     s = load_settings(require_token=True)
     init_db(s.db_path)
     if all_:
-        releases = prs = commits = True
-    if not (releases or prs or commits):
-        console.print("[yellow]Pick at least one of --releases / --prs / --commits / --all[/]")
+        releases = prs = commits = registry = True
+    if not (releases or prs or commits or registry):
+        console.print(
+            "[yellow]Pick at least one of --releases / --prs / --commits / --registry / --all[/]"
+        )
         raise typer.Exit(1)
 
     client = GitHubClient(s.github_token, s.repo)
@@ -50,6 +55,11 @@ def sync(
             sync_commits(client, s.db_path, full=full)
     finally:
         client.close()
+    if registry:
+        counts = sync_registry(s.db_path)
+        total = sum(counts.values())
+        console.print(f"[cyan]Registry synced:[/] {total} arch entries "
+                      f"({', '.join(f'{k}={v}' for k, v in sorted(counts.items()))})")
     # Always re-link PRs to releases (cheap)
     if releases or prs:
         link_prs_to_releases(s.db_path)
@@ -65,25 +75,54 @@ def link():
 
 
 @app.command()
-def report(
-    out: Path = typer.Option(Path("docs/reports/latest.md"), "--out", help="Output markdown path"),
-    days: int = typer.Option(7, "--days", help="Stats window in days"),
-    llm: bool = typer.Option(False, "--llm/--no-llm", help="Prepend an LLM digest section"),
-    llm_days: int = typer.Option(1, "--llm-days", help="LLM digest window (default: 1 day)"),
+def digest(
+    out: Path = typer.Option(Path("docs/weekly/latest.md"), "--out",
+                             help="Output markdown path"),
+    days: int = typer.Option(7, "--days", help="Window in days"),
+    llm: bool = typer.Option(True, "--llm/--no-llm", help="Include the LLM themed digest"),
     backend: str = typer.Option(None, "--backend", help="github | anthropic"),
     model: str = typer.Option(None, "--model"),
 ):
-    """Generate a daily markdown activity report (optionally with LLM digest)."""
+    """Generate a weekly themed digest under docs/weekly/.
+
+    Replaces the old `report` command which produced a noisy daily file with
+    duplicated stats tables. The new digest is theme-sliced (Kernels,
+    Quantization, Parallelism, …) at the top, then a release list, then a
+    collapsed raw PR list.
+    """
     s = load_settings()
     init_db(s.db_path)
-    text = generate_daily_report(
+    text = generate_weekly_digest(
         s.db_path, days=days, repo=s.repo,
-        include_llm=llm, llm_days=llm_days,
-        llm_backend=backend, llm_model=model,
+        include_llm=llm, llm_backend=backend, llm_model=model,
     )
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
-    console.print(f"[green]Report written:[/] {out}")
+    console.print(f"[green]Digest written:[/] {out}")
+
+
+# Backwards-compat shim: the GH Actions workflow still invokes `report`. Keep
+# the old name working so the cron doesn't break mid-rollout.
+@app.command()
+def report(
+    out: Path = typer.Option(Path("docs/weekly/latest.md"), "--out", help="Output markdown path"),
+    days: int = typer.Option(7, "--days", help="Window in days"),
+    llm: bool = typer.Option(True, "--llm/--no-llm", help="Include LLM digest"),
+    llm_days: int = typer.Option(7, "--llm-days", help="(deprecated, ignored)"),
+    backend: str = typer.Option(None, "--backend", help="github | anthropic"),
+    model: str = typer.Option(None, "--model"),
+):
+    """Deprecated alias for `digest`. Will be removed once workflow migrates."""
+    del llm_days  # accepted for back-compat, ignored
+    s = load_settings()
+    init_db(s.db_path)
+    text = generate_weekly_digest(
+        s.db_path, days=days, repo=s.repo,
+        include_llm=llm, llm_backend=backend, llm_model=model,
+    )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+    console.print(f"[green]Digest written:[/] {out}")
 
 
 @app.command()

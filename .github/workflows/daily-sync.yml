@@ -59,14 +59,16 @@ jobs:
             vllm-insights sync --all
           fi
 
-      - name: Daily report (stats + LLM digest)
+      - name: Weekly themed digest (LLM)
         env:
           LLM_BACKEND: github
         run: |
-          DATE=$(date -u +%Y-%m-%d)
-          mkdir -p docs/reports
-          vllm-insights report --out "docs/reports/${DATE}.md" --days 7 --llm --llm-days 1
-          cp "docs/reports/${DATE}.md" docs/reports/latest.md
+          mkdir -p docs/weekly
+          vllm-insights digest --out docs/weekly/latest.md --days 7 --llm
+          # Persist a dated archive copy keyed by ISO week so history grows
+          # one file per week instead of one per day.
+          ISOWEEK=$(date -u +%G-W%V)
+          cp docs/weekly/latest.md "docs/weekly/${ISOWEEK}.md"
 
       - name: Summarize latest release (LLM, cached)
         env:
@@ -78,18 +80,18 @@ jobs:
       - name: Build static site
         run: vllm-insights site --docs docs
 
-      # Commit the markdown reports + index so history is browsable on the main branch.
+      # Commit the weekly markdown + index so the history is browsable on main.
       # The HTML dashboard goes to Pages via artifact upload (not committed).
-      - name: Commit reports
+      - name: Commit weekly digest
         run: |
           git config user.name "vllm-insights-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add docs/reports/*.md docs/weekly/*.md 2>/dev/null || true
+          git add docs/weekly/*.md 2>/dev/null || true
           if ! git diff --cached --quiet; then
-            git commit -m "report: daily activity $(date -u +%Y-%m-%d)"
+            git commit -m "digest: weekly themed activity $(date -u +%Y-%m-%d)"
             git push
           else
-            echo "No report changes to commit."
+            echo "No digest changes to commit."
           fi
 
       - name: Upload Pages artifact

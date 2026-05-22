@@ -1,12 +1,14 @@
 """Build a static HTML dashboard under docs/ for GitHub Pages.
 
-Generates:
-  docs/index.html           — interactive Plotly dashboard
-  docs/reports/index.md     — list of daily reports
-  docs/weekly/index.md      — list of weekly summaries
+Audience: vLLM serving engineers and people sizing up vLLM for production.
+The page is organised around the decisions those readers actually make:
 
-Daily / weekly markdown files are expected to already live under docs/reports/ and
-docs/weekly/ (produced by the report / summarize commands when --out points there).
+  1. Upgrade decision for the latest release (LLM-generated verdict)
+  2. Capability matrix — what works on which hardware, today
+  3. Supported-models compatibility focus — backed by a live mirror of
+     `vllm/model_executor/models/registry.py`
+  4. Weekly themed digest pointer
+  5. Activity stats — demoted into a collapsed details block at the bottom
 """
 import re
 from datetime import datetime, timezone
@@ -20,16 +22,19 @@ import plotly.io as pio
 from .analyzer.queries import (
     releases_df, prs_df, commits_df, classify_pr_by_title, merge_time_stats,
 )
+from .capability import CAPABILITY_CSS, render_capability_matrix
 from .db import connect
 from .models import (
     FOCUS_VENDORS,
     classify as classify_model,
+    classify_arch,
     hf_org_url,
     hf_search_url,
     is_focus_vendor,
     looks_like_model_section,
     vendor_tech,
 )
+from .registry_sync import load_registry
 from .summarize import link_refs
 
 
@@ -107,7 +112,37 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #ddd3;
 .vendor-card .new-list li { margin: .15rem 0; }
 .vendor-card .no-new { font-size: .78rem; opacity: .55; font-style: italic; margin: 0; }
 .vendor-card .series { font-size: .72rem; opacity: .6; }
-"""
+.vendor-card .pill.arch.removed {
+    text-decoration: line-through;
+    opacity: .45;
+    border-color: #c66a;
+    background: rgba(220,80,80,.08);
+}
+.vendor-card .registry-meta { font-size: .68rem; opacity: .5;
+    border-top: 1px dashed #6663; padding-top: .35rem; margin-top: .2rem; }
+
+/* Positioning header + audience line */
+.lede { font-size: .95rem; opacity: .85; margin: .4rem 0 .2rem; max-width: 70ch; }
+.audience { font-size: .8rem; opacity: .55; margin: 0; }
+.section-lede { font-size: .88rem; opacity: .8; margin: .3rem 0 .8rem; max-width: 75ch; }
+
+/* Digest pointer block */
+.digest-pointer {
+    display: block; padding: .8rem 1rem; margin: 1rem 0 1.5rem;
+    border: 1px solid #ddd5; border-radius: 8px;
+    background: rgba(127,127,127,.04); text-decoration: none; color: inherit;
+}
+.digest-pointer:hover { background: rgba(102,204,255,.08); border-color: #6cf8; }
+.digest-pointer h3 { margin: 0 0 .25rem; font-size: 1rem; }
+.digest-pointer p { margin: 0; font-size: .85rem; opacity: .75; }
+
+/* Activity stats collapsed at the bottom */
+details.activity > summary {
+    cursor: pointer; font-weight: 600; padding: .6rem 0;
+    font-size: 1rem; border-bottom: 1px solid #ddd3;
+}
+details.activity[open] > summary { margin-bottom: 1rem; }
+""" + CAPABILITY_CSS
 
 
 def _fig_html(fig, div_id: str) -> str:
@@ -130,26 +165,58 @@ def _item_to_html(item: str, repo: str) -> str:
     return html
 
 
+def _load_registry_by_vendor(db_path: Path) -> tuple[
+    dict[str, list[dict]], dict[str, list[dict]], str | None
+]:
+    """Load mirrored upstream registry rows and group them by focus vendor.
+
+    Returns `(live, removed, last_seen_at)` where each dict is
+    `{vendor_name: [registry_row, ...]}`. `last_seen_at` is the timestamp of
+    the most recent sync that observed any row — useful for a "registry as of"
+    footer.
+    """
+    rows = load_registry(db_path, include_removed=True)
+    live: dict[str, list[dict]] = {}
+    removed: dict[str, list[dict]] = {}
+    last_seen: str | None = None
+    for r in rows:
+        if r["last_seen_at"] and (last_seen is None or r["last_seen_at"] > last_seen):
+            last_seen = r["last_seen_at"]
+        hit = classify_arch(r["arch_class"])
+        if not hit:
+            continue
+        vendor, _ = hit
+        if not is_focus_vendor(vendor):
+            continue
+        bucket = removed if r["removed_at"] else live
+        bucket.setdefault(vendor, []).append(r)
+    return live, removed, last_seen
+
+
 def _render_focus_grid(
     by_focus: dict[str, list[tuple[str, str]]],
+    db_path: Path,
     repo: str,
 ) -> str:
     """Render a grid of tech cards for the curated focus vendors.
 
-    Each card always renders (independent of whether the current release added
-    a model from that vendor) so the page reads as a stable vLLM-compatibility
-    matrix rather than a sparse "what's new" list.
+    The arch-class pills now come from the live mirror of upstream
+    `registry.py` (synced via `vllm-insights sync --registry`); the curated
+    `VENDOR_TECH` table provides only the human-authored tagline, modalities,
+    feature pills and series names. If the registry hasn't been synced yet we
+    fall back to the curated arch list so the page is never empty.
     """
+    live, removed, last_seen = _load_registry_by_vendor(db_path)
+    from .models import VENDOR_RULES
+
     cards: list[str] = []
     for vendor in FOCUS_VENDORS:
         tech = vendor_tech(vendor) or {}
         items = by_focus.get(vendor, [])
 
-        # Vendor name + HF org link
+        # Vendor display + HF org link
         org_slug = items[0][1] if items else None
         if not org_slug:
-            # Fall back to the slug baked into the rule table
-            from .models import VENDOR_RULES
             for _, vname, oslug in VENDOR_RULES:
                 if vname == vendor:
                     org_slug = oslug
@@ -162,9 +229,24 @@ def _render_focus_grid(
         else:
             head = escape(vendor)
 
-        archs = "".join(
-            f'<span class="pill arch">{escape(a)}</span>' for a in tech.get("archs", [])
-        )
+        # Arch pills — live registry first, fall back to curated list
+        live_archs = [r["arch_class"] for r in live.get(vendor, [])]
+        removed_archs = [r["arch_class"] for r in removed.get(vendor, [])]
+        if live_archs or removed_archs:
+            arch_pills = "".join(
+                f'<span class="pill arch">{escape(a)}</span>'
+                for a in sorted(live_archs)
+            ) + "".join(
+                f'<span class="pill arch removed" title="Removed upstream">'
+                f'{escape(a)}</span>'
+                for a in sorted(removed_archs)
+            )
+        else:
+            arch_pills = "".join(
+                f'<span class="pill arch">{escape(a)}</span>'
+                for a in tech.get("archs", [])
+            )
+
         modals = "".join(
             f'<span class="pill modal">{escape(m)}</span>' for m in tech.get("modal", [])
         )
@@ -194,14 +276,22 @@ def _render_focus_grid(
         else:
             new_block = '<p class="no-new">No new entries in this release.</p>'
 
+        arch_count = len(live_archs) if live_archs else len(tech.get("archs", []))
+        registry_meta = (
+            f'<div class="registry-meta">'
+            f'{arch_count} arch{"" if arch_count == 1 else "es"} in vLLM registry'
+            + (f' · removed: {len(removed_archs)}' if removed_archs else "")
+            + '</div>'
+        )
+
         tagline = tech.get("tagline", "")
         cards.append(
             '<div class="vendor-card">'
             f'<div class="vendor-head"><span class="vendor-name">{head}</span></div>'
             + (f'<p class="tagline">{escape(tagline)}</p>' if tagline else "")
             + (
-                f'<div class="row"><span class="row-label">vLLM arch</span>{archs}</div>'
-                if archs else ""
+                f'<div class="row"><span class="row-label">vLLM arch</span>{arch_pills}</div>'
+                if arch_pills else ""
             )
             + (
                 f'<div class="row"><span class="row-label">Modalities</span>{modals}</div>'
@@ -213,10 +303,20 @@ def _render_focus_grid(
             )
             + series_html
             + new_block
+            + registry_meta
             + "</div>"
         )
 
-    return '<div class="vendor-grid">' + "\n".join(cards) + "</div>"
+    footer = ""
+    if last_seen:
+        footer = (
+            f'<p style="font-size:.72rem;opacity:.55;margin:.3rem 0 0">'
+            f'Architecture pills mirror upstream '
+            f'<code>vllm/model_executor/models/registry.py</code> '
+            f'as of {escape(last_seen[:16].replace("T", " "))} UTC.</p>'
+        )
+
+    return '<div class="vendor-grid">' + "\n".join(cards) + "</div>" + footer
 
 
 def _render_latest_release(db_path: Path, repo: str) -> str:
@@ -258,7 +358,7 @@ def _render_latest_release(db_path: Path, repo: str) -> str:
         if is_focus_vendor(vendor):
             by_focus.setdefault(vendor, []).append((s["item"], org))
 
-    vendor_html = _render_focus_grid(by_focus, repo)
+    vendor_html = _render_focus_grid(by_focus, db_path, repo)
 
     published = latest["published_at"][:10] if latest.get("published_at") else "?"
 
@@ -272,30 +372,118 @@ def _render_latest_release(db_path: Path, repo: str) -> str:
         )
         summary_html = (
             "<details open class='release-summary'>"
-            "<summary>LLM overview</summary>"
+            "<summary>Upgrade verdict (LLM-generated)</summary>"
             f"{rendered}{meta}"
             "</details>"
         )
 
     return f"""
-<h2>Latest release</h2>
+<h2>Should you upgrade to {escape(tag)}?</h2>
 <p>
   <a href="{escape(rel_url)}" target="_blank" rel="noopener"><strong>{escape(tag)}</strong></a>
   {escape("— " + name) if name and name != tag else ""}
   <span style="opacity:.7">· published {escape(published)}</span>
 </p>
+<p class="section-lede">
+  The verdict below is generated from the raw release notes by an LLM and answers
+  the only question that matters for an operator: should you upgrade, wait, or
+  skip — and what will break if you do? Treat it as a first pass, not a guarantee;
+  cross-check the linked release notes before rolling to production.
+</p>
 {summary_html}
 <h3>Supported models &mdash; vLLM compatibility focus</h3>
 <p class="models-intro">
-  Curated view of how vLLM serves the model families we track most closely:
-  Qwen, DeepSeek, MiniMax, GLM, plus the US top-3 open-source families
-  (Llama, Gemma, Phi). Each card lists the vLLM <code>architectures</code>
-  class names you'd pass to <code>--model</code>, supported modalities and the
-  engine/quant features that light up. New entries from {escape(tag)} are
-  highlighted inline.
+  Architecture-class pills are mirrored from upstream
+  <code>vllm/model_executor/models/registry.py</code> on every sync, so they
+  stay correct as new models land or get dropped. Modalities, engine-feature
+  and series labels are curated. New entries from {escape(tag)} are highlighted
+  inline. We surface seven families: Qwen / DeepSeek / MiniMax / GLM and the US
+  top-3 open-source families (Llama / Gemma / Phi).
 </p>
 {vendor_html}
 """
+
+
+def _render_digest_pointer(docs_dir: Path) -> str:
+    """If a weekly digest exists, link to it from the homepage."""
+    weekly = docs_dir / "weekly" / "latest.html"
+    if not weekly.exists():
+        # The HTML version is built by `build_report_index`. If we don't have
+        # the HTML yet but do have the md, still link out so the page is useful.
+        weekly_md = docs_dir / "weekly" / "latest.md"
+        if not weekly_md.exists():
+            return ""
+    return (
+        '<a class="digest-pointer" href="weekly/latest.html">'
+        '<h3>This week in vLLM &rarr;</h3>'
+        '<p>Theme-sliced digest: Kernels &amp; attention, Quantization, '
+        'Parallelism &amp; scheduling, Model support, Hardware, API &amp; serving, '
+        'Watch list. Generated weekly from merged PRs + releases.</p>'
+        '</a>'
+    )
+
+
+def _render_activity(rel: pd.DataFrame, prs: pd.DataFrame, cm: pd.DataFrame,
+                     now: datetime) -> str:
+    """Activity / vanity stats, collapsed behind a details element.
+
+    These charts (release cadence, merge time, PRs per month, top committers)
+    used to dominate the homepage. They're useful but they don't answer any
+    operator question and they make the page look like a generic GitHub
+    dashboard, so we tuck them away.
+    """
+    cards: list[str] = []
+    cards.append(_card(str(len(rel)), "Releases tracked"))
+    if not rel.empty:
+        med = rel["interval_days"].dropna().median()
+        cards.append(_card(f"{med:.1f}d" if pd.notna(med) else "—",
+                           "Median release interval"))
+    cards.append(_card(str(len(prs)), "PRs in cache"))
+    if not prs.empty:
+        merged = prs.dropna(subset=["merged_at"])
+        med_h = merged["merge_hours"].dropna().median()
+        cards.append(_card(f"{med_h:.1f}h" if pd.notna(med_h) else "—",
+                           "Median merge time"))
+    cards.append(_card(str(len(cm)), "Commits in cache"))
+    cards_html = '<div class="cards">' + "".join(cards) + "</div>"
+
+    charts: list[str] = []
+    if not rel.empty:
+        d = rel.dropna(subset=["interval_days"])
+        if not d.empty:
+            fig = px.scatter(d, x="published_at", y="interval_days", hover_data=["tag"],
+                             title="Release cadence (days between releases)")
+            charts.append(_fig_html(fig, "chart-release"))
+    if not prs.empty:
+        stats = merge_time_stats(prs)
+        if not stats.empty:
+            fig = px.line(stats, x="month", y="median", markers=True,
+                          title="Median PR merge time per month (hours)")
+            charts.append(_fig_html(fig, "chart-merge"))
+        recent = prs[prs["created_at"] >= pd.Timestamp(now) - pd.Timedelta(days=180)].copy()
+        if not recent.empty:
+            recent["tech"] = recent["title"].apply(classify_pr_by_title)
+            dist = (recent.groupby("tech").size().reset_index(name="count")
+                    .sort_values("count", ascending=False))
+            fig = px.bar(dist, x="tech", y="count",
+                         title="PR distribution by tech area (last 180 days)")
+            charts.append(_fig_html(fig, "chart-tech"))
+    if not cm.empty:
+        c = cm.copy()
+        c["week"] = c["committed_at"].dt.to_period("W").astype(str)
+        weekly = c.groupby("week").size().reset_index(name="commits")
+        fig = px.line(weekly, x="week", y="commits", title="Commits per week")
+        charts.append(_fig_html(fig, "chart-commits"))
+
+    charts_html = '\n'.join(f'<div class="chart">{c}</div>' for c in charts) \
+        or '<p><em>No data yet — run <code>vllm-insights sync --all</code> first.</em></p>'
+
+    return (
+        '<details class="activity">'
+        '<summary>Repo activity stats (vanity metrics — for the curious)</summary>'
+        f'{cards_html}{charts_html}'
+        '</details>'
+    )
 
 
 def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
@@ -305,91 +493,42 @@ def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
     cm = commits_df(db_path)
     now = datetime.now(timezone.utc)
 
-    # ---- summary cards ----
-    cards = []
-    cards.append(_card(str(len(rel)), "Releases"))
-    if not rel.empty:
-        med = rel["interval_days"].dropna().median()
-        cards.append(_card(f"{med:.1f}d" if pd.notna(med) else "—", "Median release interval"))
-        cards.append(_card(rel.iloc[-1]["tag"], "Latest release"))
-    cards.append(_card(str(len(prs)), "PRs cached"))
-    if not prs.empty:
-        merged = prs.dropna(subset=["merged_at"])
-        med_h = merged["merge_hours"].dropna().median()
-        cards.append(_card(f"{med_h:.1f}h" if pd.notna(med_h) else "—", "Median merge time"))
-    cards.append(_card(str(len(cm)), "Commits cached"))
-    cards_html = '<div class="cards">' + "".join(cards) + "</div>"
-
-    # ---- latest release + supported models ----
     latest_html = _render_latest_release(db_path, repo)
-
-    # ---- charts ----
-    charts: list[str] = []
-
-    if not rel.empty:
-        d = rel.dropna(subset=["interval_days"])
-        if not d.empty:
-            fig = px.scatter(d, x="published_at", y="interval_days", hover_data=["tag"],
-                             title="Release cadence (days between releases)")
-            charts.append(_fig_html(fig, "chart-release"))
-
-    if not prs.empty:
-        stats = merge_time_stats(prs)
-        if not stats.empty:
-            fig = px.line(stats, x="month", y="median", markers=True,
-                          title="Median PR merge time per month (hours)")
-            charts.append(_fig_html(fig, "chart-merge"))
-
-        v = prs.copy()
-        v["month"] = v["created_at"].dt.to_period("M").astype(str)
-        vol = v.groupby(["month", "state"]).size().reset_index(name="count")
-        fig = px.bar(vol, x="month", y="count", color="state", title="PRs created per month")
-        charts.append(_fig_html(fig, "chart-volume"))
-
-        recent = prs[prs["created_at"] >= pd.Timestamp(now) - pd.Timedelta(days=180)].copy()
-        if not recent.empty:
-            recent["tech"] = recent["title"].apply(classify_pr_by_title)
-            dist = (recent.groupby("tech").size().reset_index(name="count")
-                    .sort_values("count", ascending=False))
-            fig = px.bar(dist, x="tech", y="count",
-                         title="PR distribution by tech area (last 180 days)")
-            charts.append(_fig_html(fig, "chart-tech"))
-
-    if not cm.empty:
-        c = cm.copy()
-        c["week"] = c["committed_at"].dt.to_period("W").astype(str)
-        weekly = c.groupby("week").size().reset_index(name="commits")
-        fig = px.line(weekly, x="week", y="commits", title="Commits per week")
-        charts.append(_fig_html(fig, "chart-commits"))
-
-        top = (c.groupby("author").size().reset_index(name="commits")
-               .sort_values("commits", ascending=False).head(20))
-        fig = px.bar(top, x="author", y="commits", title="Top 20 committers (cached window)")
-        charts.append(_fig_html(fig, "chart-authors"))
-
-    charts_html = '\n'.join(f'<div class="chart">{c}</div>' for c in charts) \
-        or '<p><em>No data yet — run <code>vllm-insights sync --all</code> first.</em></p>'
+    capability_html = render_capability_matrix()
+    digest_html = _render_digest_pointer(docs_dir)
+    activity_html = _render_activity(rel, prs, cm, now)
 
     repo_url = f"https://github.com/{repo}"
     body = f"""<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>vLLM Insights</title>
+<title>vLLM Insights — capability &amp; release intelligence</title>
 <style>{PAGE_CSS}</style>
 </head><body>
 <header>
-  <h1>vLLM GitHub Insights</h1>
-  <div>Tracking <a href="{repo_url}">{escape(repo)}</a> · updated {now:%Y-%m-%d %H:%M UTC}</div>
+  <h1>vLLM Insights</h1>
+  <p class="lede">
+    Capability matrix and release intelligence for
+    <a href="{repo_url}">{escape(repo)}</a>.
+    Built for engineers picking a vLLM version, sizing up a serving rig, or
+    deciding whether a model family is actually production-ready.
+  </p>
+  <p class="audience">
+    Updated {now:%Y-%m-%d %H:%M UTC} · data: GitHub REST · supported-models: mirrored from
+    upstream <code>registry.py</code>
+  </p>
   <nav style="margin-top:.6rem">
-    <a href="reports/">All daily reports</a>
+    <a href="weekly/">Weekly digest</a>
+    <a href="reports/">Daily archive</a>
   </nav>
 </header>
-{cards_html}
 {latest_html}
-<h2>Trends</h2>
-{charts_html}
-<footer>Generated by vllm-insights. Data from the GitHub REST API,
-cached locally to SQLite, refreshed daily via GitHub Actions.</footer>
+{capability_html}
+{digest_html}
+{activity_html}
+<footer>Generated by vllm-insights. GitHub data cached to SQLite and refreshed
+every 6 hours; capability matrix is curated and reviewed manually; supported-model
+arch pills are mirrored verbatim from upstream <code>vllm/model_executor/models/registry.py</code>.</footer>
 </body></html>"""
     out = docs_dir / "index.html"
     out.write_text(body, encoding="utf-8")
