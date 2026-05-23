@@ -59,17 +59,14 @@ jobs:
             vllm-insights sync --all
           fi
 
-      - name: Analyze (PR↔Issue links, release drift, embeddings, clustering, benchmarks)
+      - name: Analyze (links / perf-claims / release-drift / embeddings / clustering)
         env:
           # Optional: embeddings + clustering are skipped if OPENAI_API_KEY is not set.
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          # PR↔Issue link mining + release drift always run (cheap, no extra creds)
-          vllm-insights analyze --pr-issue-links --release-diff || \
+          # Cheap, no extra creds: PR↔Issue links, perf-claim extraction, release drift
+          vllm-insights analyze --pr-issue-links --perf-claims --release-diff || \
             echo "core analyses failed; continuing"
-          # Benchmarks: best-effort scrape of perf-CI artifacts
-          vllm-insights analyze --benchmarks || \
-            echo "benchmarks scrape failed; continuing"
           # Embeddings + clustering: skipped silently if OPENAI_API_KEY is not configured
           if [ -n "${OPENAI_API_KEY}" ]; then
             vllm-insights analyze --embed --cluster || \

@@ -245,6 +245,100 @@ def latest_cluster_run(db_path: Path, kind: str) -> str | None:
     return row["run_id"] if row else None
 
 
+def cluster_momentum(db_path: Path, kind: str = "pr",
+                     *, window_days: int = 30) -> list[dict]:
+    """For each cluster in the latest run, compute PR counts in the last
+    `window_days` vs the previous `window_days`. Returns rows sorted by
+    growth ratio descending.
+
+    A "story" emerges naturally: clusters where this-window > prior-window
+    are heating up; the reverse is cooling. We don't editorialise — the
+    numbers do the talking.
+    """
+    rid = latest_cluster_run(db_path, kind)
+    if not rid:
+        return []
+    if kind != "pr":
+        # Issue momentum exists but is less useful (issue activity is dominated
+        # by comments, which we don't currently track); skip for now.
+        return []
+
+    with connect(db_path) as conn:
+        # Active window count
+        cur_rows = conn.execute(
+            """SELECT ca.cluster, COUNT(DISTINCT ca.entity_id) AS n
+               FROM cluster_assignments ca
+               JOIN pull_requests p ON p.number = ca.entity_id
+               WHERE ca.run_id = ? AND ca.kind = ?
+                 AND p.merged_at IS NOT NULL
+                 AND p.merged_at >= datetime('now', ?)
+               GROUP BY ca.cluster""",
+            (rid, kind, f"-{window_days} days"),
+        ).fetchall()
+        # Prior window count
+        prev_rows = conn.execute(
+            """SELECT ca.cluster, COUNT(DISTINCT ca.entity_id) AS n
+               FROM cluster_assignments ca
+               JOIN pull_requests p ON p.number = ca.entity_id
+               WHERE ca.run_id = ? AND ca.kind = ?
+                 AND p.merged_at IS NOT NULL
+                 AND p.merged_at >= datetime('now', ?)
+                 AND p.merged_at <  datetime('now', ?)
+               GROUP BY ca.cluster""",
+            (rid, kind,
+             f"-{window_days * 2} days", f"-{window_days} days"),
+        ).fetchall()
+        labels = {
+            r["cluster"]: r["label"]
+            for r in conn.execute(
+                "SELECT cluster, label FROM cluster_summary "
+                "WHERE run_id = ? AND kind = ?",
+                (rid, kind),
+            ).fetchall()
+        }
+
+    cur_map = {r["cluster"]: r["n"] for r in cur_rows}
+    prev_map = {r["cluster"]: r["n"] for r in prev_rows}
+    out: list[dict] = []
+    for cluster, label in labels.items():
+        cur = cur_map.get(cluster, 0)
+        prev = prev_map.get(cluster, 0)
+        if cur + prev == 0:
+            continue
+        if cur == 0 and prev == 0:
+            continue
+        # Smoothed ratio so a 0→3 jump shows up properly without divide-by-zero.
+        ratio = (cur + 1) / (prev + 1)
+        out.append({
+            "cluster": cluster,
+            "label": label,
+            "current": cur,
+            "previous": prev,
+            "ratio": ratio,
+        })
+    out.sort(key=lambda r: r["ratio"], reverse=True)
+    return out
+
+
+def cluster_for_pr(db_path: Path, pr_number: int) -> dict | None:
+    """Get the cluster label for one PR (latest run). Used by other UI
+    sections to badge PRs with their topic."""
+    rid = latest_cluster_run(db_path, "pr")
+    if not rid:
+        return None
+    with connect(db_path) as conn:
+        row = conn.execute(
+            """SELECT cs.cluster, cs.label
+               FROM cluster_assignments ca
+               JOIN cluster_summary cs
+                 ON cs.run_id = ca.run_id AND cs.kind = ca.kind
+                AND cs.cluster = ca.cluster
+               WHERE ca.run_id = ? AND ca.kind = 'pr' AND ca.entity_id = ?""",
+            (rid, pr_number),
+        ).fetchone()
+    return dict(row) if row else None
+
+
 def load_top_clusters(db_path: Path, kind: str, *, top: int = 10) -> list[dict]:
     """Top `top` clusters from the most recent run, ordered by size desc.
     Returns rows with label, size, and sample_ids (parsed)."""

@@ -15,11 +15,15 @@ from .fetcher.prs import sync_prs
 from .fetcher.commits import sync_commits
 from .fetcher.issues import sync_issues
 from .fetcher.forks import sync_forks
+from .fetcher.pr_reactions import sync_pr_reactions
 from .analyzer.queries import releases_df, prs_df, commits_df
 from .analyzer.linking import link_prs_to_releases
+from .analysis.history import sync_history
+from .analysis.perf_claims import sync_perf_claims
 from .analysis.pr_issue_links import sync_pr_issue_links
 from .analysis.release_diff import sync_release_diffs
 from .analysis.embeddings import embed_entities
+from .analysis.social import sync_hn_mentions
 from .analysis.topics import run_clustering
 from .analysis.benchmarks import sync_benchmarks
 from .report import generate_weekly_digest
@@ -42,6 +46,13 @@ def sync(
                                 help="Sync labelled issues (performance / regression / RFC / …)"),
     forks: bool = typer.Option(False, "--forks",
                                help="Monitor active forks (ahead/behind + unique commits)"),
+    reactions: bool = typer.Option(False, "--reactions",
+                                   help="Refresh GitHub reaction counts on PRs (👍🚀❤️🎉)"),
+    hn: bool = typer.Option(False, "--hn",
+                            help="Pull HN mentions of vLLM via algolia.io (no auth)"),
+    history: bool = typer.Option(False, "--history",
+                                 help="Snapshot per-release inventory (arch, quant, platform, …) "
+                                      "for time-series charts"),
     registry: bool = typer.Option(False, "--registry",
                                   help="Mirror upstream vllm/model_executor/models/registry.py"),
     source_scan: bool = typer.Option(False, "--source-scan",
@@ -54,11 +65,12 @@ def sync(
     s = load_settings(require_token=True)
     init_db(s.db_path)
     if all_:
-        releases = prs = commits = issues = forks = registry = source_scan = True
-    if not any((releases, prs, commits, issues, forks, registry, source_scan)):
+        releases = prs = commits = issues = forks = reactions = hn = history = registry = source_scan = True
+    if not any((releases, prs, commits, issues, forks, reactions, hn,
+                history, registry, source_scan)):
         console.print(
             "[yellow]Pick at least one of --releases / --prs / --commits / --issues "
-            "/ --forks / --registry / --source-scan / --all[/]"
+            "/ --forks / --reactions / --hn / --history / --registry / --source-scan / --all[/]"
         )
         raise typer.Exit(1)
 
@@ -72,8 +84,12 @@ def sync(
             sync_commits(client, s.db_path, full=full)
         if issues:
             sync_issues(client, s.db_path, full=full)
+        if reactions:
+            sync_pr_reactions(client, s.db_path, full=full)
         if forks:
             sync_forks(client, s.db_path)
+        if history:
+            sync_history(client, s.db_path)
         if source_scan:
             counts = sync_source_inventory(client, s.db_path)
             total = sum(counts.values())
@@ -81,6 +97,8 @@ def sync(
                           f"({', '.join(f'{k}={v}' for k, v in sorted(counts.items()))})")
     finally:
         client.close()
+    if hn:
+        sync_hn_mentions(s.db_path)
     if registry:
         counts = sync_registry(s.db_path)
         total = sum(counts.values())
@@ -96,6 +114,8 @@ def sync(
 def analyze(
     pr_issue_links: bool = typer.Option(False, "--pr-issue-links",
                                         help="Mine Fixes/Closes/Resolves links from PR bodies"),
+    perf_claims: bool = typer.Option(False, "--perf-claims",
+                                     help="Extract author-claimed perf deltas from PR titles+bodies"),
     release_diff: bool = typer.Option(False, "--release-diff",
                                       help="Aggregate release-to-release file drift by directory"),
     embed: bool = typer.Option(False, "--embed",
@@ -103,23 +123,25 @@ def analyze(
     cluster: bool = typer.Option(False, "--cluster",
                                  help="K-means topic clustering on embedded entities"),
     benchmarks: bool = typer.Option(False, "--benchmarks",
-                                    help="Scrape perf-CI artifacts from upstream Actions"),
+                                    help="Best-effort GH Actions perf artifact scrape (likely empty — see --perf-claims)"),
     all_: bool = typer.Option(False, "--all", help="Run every analysis"),
 ):
     """Run intelligent analyses over the cached data."""
     s = load_settings(require_token=True)
     init_db(s.db_path)
     if all_:
-        pr_issue_links = release_diff = embed = cluster = benchmarks = True
-    if not any((pr_issue_links, release_diff, embed, cluster, benchmarks)):
+        pr_issue_links = perf_claims = release_diff = embed = cluster = benchmarks = True
+    if not any((pr_issue_links, perf_claims, release_diff, embed, cluster, benchmarks)):
         console.print(
-            "[yellow]Pick at least one of --pr-issue-links / --release-diff / "
-            "--embed / --cluster / --benchmarks / --all[/]"
+            "[yellow]Pick at least one of --pr-issue-links / --perf-claims / "
+            "--release-diff / --embed / --cluster / --benchmarks / --all[/]"
         )
         raise typer.Exit(1)
 
     if pr_issue_links:
         sync_pr_issue_links(s.db_path)
+    if perf_claims:
+        sync_perf_claims(s.db_path)
 
     client: GitHubClient | None = None
     try:

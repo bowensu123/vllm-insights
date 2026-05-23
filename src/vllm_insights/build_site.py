@@ -19,9 +19,14 @@ import pandas as pd
 import plotly.express as px
 import plotly.io as pio
 
+from .analysis.history import counts_over_time
+from .analysis.perf_claims import recent_claims
 from .analysis.pr_issue_links import top_issue_hotspots
 from .analysis.release_diff import latest_pair, load_drift_for_pair
-from .analysis.topics import load_top_clusters
+from .analysis.social import hottest_recent_prs, recent_hn_mentions, top_hn_mentions
+from .analysis.topics import (
+    cluster_for_pr, cluster_momentum, load_top_clusters,
+)
 from .analysis.benchmarks import load_recent_benchmarks
 from .analyzer.queries import (
     releases_df, prs_df, commits_df, classify_pr_by_title, merge_time_stats,
@@ -200,6 +205,56 @@ table.drift-table td.files { width: 5rem; text-align: right; opacity: .8; }
 table.drift-table td.changes { font-size: .78rem; position: relative; }
 .changes-bar { height: 3px; background: linear-gradient(90deg, #6c9 0%, #b85 100%);
     margin-top: .25rem; border-radius: 2px; }
+
+/* Perf claims (author-asserted deltas) */
+section.perf-claims { margin: 2rem 0 1rem; }
+ul.claims-list { list-style: none; padding: 0; }
+ul.claims-list li { padding: .35rem 0; border-bottom: 1px solid #ddd3;
+    font-size: .88rem; display: flex; flex-wrap: wrap; align-items: baseline;
+    gap: .35rem; }
+.claim-snip { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .82rem; color: #2c8f48; font-weight: 600; }
+.claim-tag { padding: .02rem .35rem; border-radius: 4px; font-size: .68rem;
+    border: 1px solid #8884; opacity: .85; }
+.claim-tag.hw { background: rgba(102,204,255,.1); border-color: #6cf6; }
+.claim-tag.model { background: rgba(160,120,255,.1); border-color: #9c6f; }
+section.perf-claims .footnote { font-size: .72rem; opacity: .55;
+    margin: .6rem 0 0; }
+
+/* Growth-over-time charts */
+section.trends { margin: 2rem 0 1rem; }
+section.trends .chart { margin: .8rem 0; }
+
+/* Topic momentum */
+section.momentum { margin: 2rem 0 1rem; }
+.momentum-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+@media (max-width: 700px) { .momentum-grid { grid-template-columns: 1fr; } }
+.momentum-col h3 { font-size: .95rem; margin: .3rem 0 .4rem;
+    text-transform: uppercase; letter-spacing: .04em; opacity: .75; }
+.momentum-col ul { list-style: none; padding: 0; margin: 0; }
+.momentum-col li { display: flex; justify-content: space-between;
+    padding: .3rem 0; border-bottom: 1px solid #ddd3; font-size: .85rem; }
+.momentum-col li:last-child { border-bottom: 0; }
+.momentum-col .topic-label { font-weight: 500; }
+.momentum-col .momentum.up   { color: #2c8f48; font-size: .8rem; font-family: ui-monospace, Menlo, monospace; }
+.momentum-col .momentum.down { color: #b85; font-size: .8rem; font-family: ui-monospace, Menlo, monospace; }
+.momentum-col .momentum .ratio { opacity: .75; font-weight: 600; margin-left: .3rem; }
+
+/* Community temperature */
+section.social { margin: 2rem 0 1rem; }
+section.social h3 { font-size: .95rem; margin-top: 1rem;
+    text-transform: uppercase; letter-spacing: .04em; opacity: .75; }
+ul.hot-prs, ul.hn-list { list-style: none; padding: 0; }
+ul.hot-prs li, ul.hn-list li { padding: .35rem 0; border-bottom: 1px solid #ddd3;
+    font-size: .85rem; display: flex; flex-wrap: wrap; align-items: baseline;
+    gap: .4rem; }
+.react-total { font-weight: 700; font-size: .85rem; min-width: 2rem;
+    color: #b8862b; }
+.react-em { font-size: .78rem; opacity: .8; font-family: -apple-system, sans-serif; }
+.hn-points { font-weight: 700; color: #ff6600; min-width: 3rem; font-size: .85rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.hn-meta { font-size: .72rem; opacity: .65; margin-left: .35rem; }
+.hn-meta a { color: inherit; }
 
 /* Benchmarks */
 section.benchmarks { margin: 2rem 0 1rem; }
@@ -869,6 +924,188 @@ def _render_benchmarks(db_path: Path) -> str:
     )
 
 
+def _render_timeseries(db_path: Path, prs: pd.DataFrame) -> str:
+    """Time-series charts derived from historical_inventory + pull_requests.
+
+    Four curves, each tied to data we actually have:
+      1. Architectures over time   (from historical_inventory, kind='arch')
+      2. Quant methods over time   (from historical_inventory, kind='quantization')
+      3. Hardware platforms over time (kind='platform')
+      4. MoE PR share by month     (from PR titles regex)
+
+    If historical_inventory is empty (history sync hasn't run yet) we skip
+    the per-release curves and just show the PR-derived chart.
+    """
+    charts: list[str] = []
+
+    for kind, label in (
+        ("arch", "Supported architectures over time"),
+        ("quantization", "Quantization methods per release"),
+        ("attention", "Attention backends per release"),
+        ("platform", "Hardware platforms per release"),
+        ("spec_decode", "Speculative-decoding methods per release"),
+    ):
+        rows = counts_over_time(db_path, kind)
+        if len(rows) < 2:
+            continue
+        df = pd.DataFrame(rows)
+        df["published_at"] = pd.to_datetime(df["published_at"])
+        df = df.sort_values("published_at")
+        fig = px.line(df, x="published_at", y="n", hover_data=["snapshot_tag"],
+                      markers=True, title=label)
+        fig.update_layout(yaxis_title="count", xaxis_title="release date")
+        charts.append(_fig_html(fig, f"chart-history-{kind}"))
+
+    # MoE PR share by month — purely from cached PRs, doesn't need history.
+    if not prs.empty:
+        v = prs.dropna(subset=["merged_at"]).copy()
+        if not v.empty:
+            v["month"] = v["merged_at"].dt.to_period("M").astype(str)
+            v["is_moe"] = v["title"].str.contains(
+                r"\b(?:moe|expert[- ]parallel|deepep)\b", case=False, regex=True
+            ).fillna(False)
+            monthly = (
+                v.groupby("month")
+                .agg(total=("number", "count"),
+                     moe=("is_moe", "sum"))
+                .reset_index()
+            )
+            monthly["share_pct"] = (monthly["moe"] / monthly["total"] * 100).round(2)
+            # Trim to last 24 months — older data is noisy
+            monthly = monthly.tail(24)
+            fig = px.bar(monthly, x="month", y="share_pct",
+                         title="MoE-related PR share by month (%)",
+                         hover_data=["moe", "total"])
+            fig.update_layout(yaxis_title="% of monthly PRs",
+                              xaxis_title=None)
+            charts.append(_fig_html(fig, "chart-moe-share"))
+
+    if not charts:
+        return ""
+    return (
+        '<section class="trends">'
+        '<h2>Growth over time</h2>'
+        + "\n".join(f'<div class="chart">{c}</div>' for c in charts) +
+        '</section>'
+    )
+
+
+def _render_topic_momentum(db_path: Path) -> str:
+    """Top growing / shrinking clusters this month vs last."""
+    rows = cluster_momentum(db_path, "pr", window_days=30)
+    if not rows:
+        return ""
+    growing = [r for r in rows if r["ratio"] > 1.0 and r["current"] >= 2][:6]
+    shrinking = list(reversed(
+        [r for r in rows if r["ratio"] < 1.0 and r["previous"] >= 2]
+    ))[:6]
+    if not growing and not shrinking:
+        return ""
+
+    def _block(title: str, items: list[dict], delta_class: str) -> str:
+        if not items:
+            return ""
+        lis = "".join(
+            f'<li><span class="topic-label">{escape(r["label"])}</span>'
+            f'<span class="momentum {delta_class}">'
+            f'{r["current"]} ← {r["previous"]} '
+            f'<span class="ratio">×{r["ratio"]:.1f}</span></span></li>'
+            for r in items
+        )
+        return f'<div class="momentum-col"><h3>{title}</h3><ul>{lis}</ul></div>'
+
+    return (
+        '<section class="momentum">'
+        '<h2>Topic momentum (30d vs prior 30d)</h2>'
+        '<div class="momentum-grid">'
+        + _block("Heating up", growing, "up")
+        + _block("Cooling down", shrinking, "down")
+        + '</div></section>'
+    )
+
+
+def _render_perf_claims(db_path: Path) -> str:
+    """Author-claimed perf deltas from PR titles + bodies."""
+    rows = recent_claims(db_path, limit=20)
+    if not rows:
+        return ""
+    items = []
+    for r in rows:
+        hw = (f'<span class="claim-tag hw">{escape(r["hardware"])}</span>'
+              if r["hardware"] else "")
+        model = (f'<span class="claim-tag model">{escape(r["model_hint"])}</span>'
+                 if r["model_hint"] else "")
+        items.append(
+            f'<li>'
+            f'<span class="claim-snip">{escape(r["snippet"])}</span>'
+            f'{hw}{model}'
+            f' &middot; <a href="{escape(r["pr_url"] or "")}" target="_blank" '
+            f'rel="noopener">#{r["pr_number"]}</a> '
+            f'{escape((r["pr_title"] or "")[:80])}'
+            f'</li>'
+        )
+    return (
+        '<section class="perf-claims">'
+        '<h2>Perf claims by PR authors</h2>'
+        f'<ul class="claims-list">{"".join(items)}</ul>'
+        '<p class="footnote">Self-reported deltas extracted from PR titles and '
+        'bodies. Verify by clicking through. Canonical perf data lives at '
+        '<a href="https://perf.vllm.ai/" target="_blank" rel="noopener">perf.vllm.ai</a>.'
+        '</p>'
+        '</section>'
+    )
+
+
+def _render_social(db_path: Path) -> str:
+    """PR reactions + HN aggregation."""
+    hot = hottest_recent_prs(db_path, days=30, limit=8)
+    hn = recent_hn_mentions(db_path, limit=8)
+    if not hot and not hn:
+        return ""
+    parts = ['<section class="social"><h2>Community temperature</h2>']
+    if hot:
+        items = []
+        for r in hot:
+            ups = r.get("reactions_plus_one") or 0
+            rocket = r.get("reactions_rocket") or 0
+            heart = r.get("reactions_heart") or 0
+            hooray = r.get("reactions_hooray") or 0
+            total = r.get("reactions_total") or 0
+            items.append(
+                f'<li>'
+                f'<span class="react-total">{total}</span> '
+                f'<span class="react-em">👍{ups} 🚀{rocket} ❤️{heart} 🎉{hooray}</span> '
+                f'<a href="{escape(r["url"] or "")}" target="_blank" rel="noopener">'
+                f'#{r["number"]}</a> {escape((r["title"] or "")[:90])}'
+                f'</li>'
+            )
+        parts.append(
+            "<h3>Most-reacted PRs in 30d</h3>"
+            f"<ul class='hot-prs'>{''.join(items)}</ul>"
+        )
+    if hn:
+        items = []
+        for r in hn:
+            href = r["url"] or r["hn_url"]
+            items.append(
+                f'<li>'
+                f'<span class="hn-points">▲ {r["points"]}</span> '
+                f'<a href="{escape(href or "")}" target="_blank" rel="noopener">'
+                f'{escape(r["title"] or "")}</a> '
+                f'<span class="hn-meta">'
+                f'<a href="{escape(r["hn_url"])}" target="_blank" rel="noopener">'
+                f'{r["num_comments"]} HN comments</a> &middot; '
+                f'{escape((r["created_at"] or "")[:10])}</span>'
+                f'</li>'
+            )
+        parts.append(
+            "<h3>Recent HN mentions</h3>"
+            f"<ul class='hn-list'>{''.join(items)}</ul>"
+        )
+    parts.append('</section>')
+    return "\n".join(parts)
+
+
 def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
     docs_dir.mkdir(parents=True, exist_ok=True)
     rel = releases_df(db_path)
@@ -878,9 +1115,12 @@ def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
 
     latest_html = _render_latest_release(db_path, repo)
     capability_html = render_capability_matrix(db_path, repo)
+    perf_claims_html = _render_perf_claims(db_path)
+    timeseries_html = _render_timeseries(db_path, prs)
     topics_html = _render_topics(db_path)
+    momentum_html = _render_topic_momentum(db_path)
     drift_html = _render_release_drift(db_path)
-    benchmarks_html = _render_benchmarks(db_path)
+    social_html = _render_social(db_path)
     hotspots_html = _render_issue_hotspots(db_path)
     forks_html = _render_forks(db_path)
     issues_html = _render_open_issues(db_path)
@@ -914,9 +1154,12 @@ def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
 </header>
 {latest_html}
 {capability_html}
-{benchmarks_html}
+{perf_claims_html}
+{timeseries_html}
 {topics_html}
+{momentum_html}
 {drift_html}
+{social_html}
 {hotspots_html}
 {forks_html}
 {issues_html}

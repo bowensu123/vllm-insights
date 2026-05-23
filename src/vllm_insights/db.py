@@ -238,6 +238,51 @@ CREATE TABLE IF NOT EXISTS benchmarks (
 );
 CREATE INDEX IF NOT EXISTS idx_bench_tag ON benchmarks(release_tag);
 CREATE INDEX IF NOT EXISTS idx_bench_metric ON benchmarks(metric);
+
+-- Author-claimed perf deltas extracted from PR titles/bodies.
+-- Each row is one perf assertion the PR author made (e.g. "+12% TPS on H100").
+-- Not a measurement — but verifiable: the link goes straight to the PR.
+CREATE TABLE IF NOT EXISTS perf_claims (
+    pr_number     INTEGER NOT NULL,
+    snippet       TEXT NOT NULL,        -- the matched substring, e.g. "1.5x faster"
+    kind          TEXT NOT NULL,        -- 'multiplier' | 'percent' | 'tokens_per_sec'
+    value         REAL,                 -- normalised numeric value
+    hardware      TEXT,                 -- 'H100' | 'B200' | 'MI300X' | 'TPU' | 'CPU' | NULL
+    model_hint    TEXT,                 -- 'llama' | 'qwen' | 'deepseek' | NULL
+    PRIMARY KEY (pr_number, snippet),
+    FOREIGN KEY (pr_number) REFERENCES pull_requests(number)
+);
+CREATE INDEX IF NOT EXISTS idx_perf_pr ON perf_claims(pr_number);
+CREATE INDEX IF NOT EXISTS idx_perf_hw ON perf_claims(hardware);
+
+-- Per-release snapshot of feature inventory and model registry.
+-- Lets us draw growth curves: how many arches did vLLM ship in v0.5 vs v0.10?
+CREATE TABLE IF NOT EXISTS historical_inventory (
+    snapshot_tag    TEXT NOT NULL,        -- release tag like 'v0.10.0'
+    published_at    TEXT NOT NULL,
+    kind            TEXT NOT NULL,        -- 'arch' | 'quantization' | 'attention' | 'platform' | 'parallel' | 'spec_decode' | 'lora'
+    name            TEXT NOT NULL,
+    source_path     TEXT,
+    PRIMARY KEY (snapshot_tag, kind, name)
+);
+CREATE INDEX IF NOT EXISTS idx_hist_tag ON historical_inventory(snapshot_tag);
+CREATE INDEX IF NOT EXISTS idx_hist_kind ON historical_inventory(kind);
+
+-- HN discussion aggregation.
+-- We pull from algolia.io (no auth) for "vllm" / "vLLM" mentions and store
+-- the canonical signal: points + comment count + url + posted time.
+CREATE TABLE IF NOT EXISTS hn_mentions (
+    object_id     TEXT PRIMARY KEY,     -- HN item id
+    title         TEXT NOT NULL,
+    url           TEXT,
+    hn_url        TEXT,
+    author        TEXT,
+    points        INTEGER NOT NULL DEFAULT 0,
+    num_comments  INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT NOT NULL,
+    fetched_at    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_hn_created ON hn_mentions(created_at);
 """
 
 
@@ -266,6 +311,14 @@ def init_db(db_path: Path) -> None:
             # Stored as raw markdown; we don't trim because the analyses run
             # later and want the full text.
             conn.execute("ALTER TABLE pull_requests ADD COLUMN body TEXT")
+        # GitHub reaction counts (👍👎🚀❤️🎉👀😄) — community heat per PR.
+        for col in ("reactions_total", "reactions_plus_one", "reactions_minus_one",
+                    "reactions_rocket", "reactions_heart", "reactions_hooray",
+                    "reactions_eyes", "reactions_laugh", "reactions_confused"):
+            if col not in cols:
+                conn.execute(f"ALTER TABLE pull_requests ADD COLUMN {col} INTEGER DEFAULT 0")
+        if "updated_at" not in cols:
+            conn.execute("ALTER TABLE pull_requests ADD COLUMN updated_at TEXT")
 
 
 def get_sync_state(conn: sqlite3.Connection, entity: str) -> str | None:
