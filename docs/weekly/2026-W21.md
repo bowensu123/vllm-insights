@@ -8,6 +8,7 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#42680](https://github.com/vllm-project/vllm/pull/42680) [MoE] Migrate W4A8 CT to oracle kernel setup — @bedeks → `nan`
 - [#43489](https://github.com/vllm-project/vllm/pull/43489) [Docs] Fix stale version number in token_classify.md — @fuergaosi233 → `nan`
 - [#43488](https://github.com/vllm-project/vllm/pull/43488) [Docs] Fix stale version number in token_embed.md — @fuergaosi233 → `nan`
 - [#42787](https://github.com/vllm-project/vllm/pull/42787) [MM] Enable FlashInfer metadata support for Qwen2.5-VL vision attention — @huanghua1994 → `nan`
@@ -67,7 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#37888](https://github.com/vllm-project/vllm/pull/37888) [XPU] Enable multiple key kernels for sparse attention — @xwu-intel → `nan`
 - [#43020](https://github.com/vllm-project/vllm/pull/43020) [Bugfix] Make CuMemAllocator free callback stream-aware — @zixi-qi → `nan`
 - [#40841](https://github.com/vllm-project/vllm/pull/40841) [Frontend] DP Supervisor — @yewentao256 → `nan`
-- [#43260](https://github.com/vllm-project/vllm/pull/43260) [Frontend] Add truncation side to OpenAI endpoints — @ruizhang99 → `nan`
 - _…and 164 more_
 
 </details>
