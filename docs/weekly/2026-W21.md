@@ -2,35 +2,8 @@
 
 _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-project/vllm)_
 
-## TL;DR
-This week saw significant improvements in model support and performance optimizations, particularly with the introduction of new quantization techniques and enhanced support for various architectures. Notable updates include fixes for bugs related to KV connectors and the addition of support for new models like Qwen3.5 and Openvla. Overall, the changes enhance the efficiency and flexibility of the vLLM inference engine.
-
-## Kernels & attention
-- Added support for `head_dim=512` in the FlashInfer trtllm attention backend, enhancing flexibility for large models ([#38822](https://github.com/vllm-project/vllm/pull/38822)).
-- Optimized hidden state extraction logic for improved performance during inference ([#37374](https://github.com/vllm-project/vllm/pull/37374)).
-
-## Quantization
-- Introduced FP8 block-scaled quantization on XPU, enabling better performance on Intel GPUs ([#42952](https://github.com/vllm-project/vllm/pull/42952)).
-- Implemented W4A16 NVFP4 fused MoE with mixed-precision dispatch, improving quantization efficiency ([#42566](https://github.com/vllm-project/vllm/pull/42566)).
-
-## Parallelism & scheduling
-- Enhanced the KV connector by keeping the scheduler alive for delayed KV connector frees, improving resource management ([#43433](https://github.com/vllm-project/vllm/pull/43433)).
-- Added support for sharing KV cache layers in Model Runner V2, optimizing memory usage during inference ([#35045](https://github.com/vllm-project/vllm/pull/35045)).
-
-## Model support
-- Added support for Qwen3.5/3.6 VLM quantized prefix mapping, expanding model capabilities ([#42546](https://github.com/vllm-project/vllm/pull/42546)).
-- Introduced Openvla support, enhancing multimodal capabilities within the framework ([#42654](https://github.com/vllm-project/vllm/pull/42654)).
-
-## Hardware
-- Improved CPU thread utilization and added fused GDN support for the AMX CPU platform, enhancing performance on CPU architectures ([#42666](https://github.com/vllm-project/vllm/pull/42666), [#42707](https://github.com/vllm-project/vllm/pull/42707)).
-- Added MXFP4 W4A16 MoE support for CPU, increasing model compatibility ([#41922](https://github.com/vllm-project/vllm/pull/41922)).
-
-## API & serving
-- Simplified the authentication middleware path extraction, improving the API's usability ([#43226](https://github.com/vllm-project/vllm/pull/43226)).
-- Added truncation side to OpenAI endpoints, enhancing compatibility with structured outputs ([#43260](https://github.com/vllm-project/vllm/pull/43260)).
-
-## Watch list
-- Ongoing discussions around the removal of dead code and optimizations in the KV connector, which may impact future releases ([#40717](https://github.com/vllm-project/vllm/pull/40717), [#42945](https://github.com/vllm-project/vllm/pull/42945)).
+_LLM digest skipped: HTTPStatusError: Client error '429 Too Many Requests' for url 'https://models.github.ai/inference/chat/completions'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429_
 
 ## PRs merged this window (220)
 
