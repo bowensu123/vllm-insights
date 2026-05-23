@@ -1,4 +1,5 @@
 """CLI entry: vllm-insights sync / dash / stats"""
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -294,7 +295,7 @@ def site(
     build_report_index(docs / "weekly", "Weekly themed digests")
     n_feat = build_feature_pages(s.db_path, docs, repo=s.repo)
     feed_path = build_feed(s.db_path, docs)
-    about_path = build_about_page(docs)
+    about_path = build_about_page(docs, newsletter_username=os.getenv("BUTTONDOWN_USERNAME", ""))
     sitemap_path = build_sitemap(docs)
     console.print(f"[green]Site built:[/] {idx}")
     console.print(f"[green]Feature pages:[/] {n_feat} files under {docs}/features/")

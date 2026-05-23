@@ -112,6 +112,50 @@ jobs:
             echo "No digest changes to commit."
           fi
 
+      - name: Send weekly digest email
+        env:
+          BUTTONDOWN_API_KEY: ${{ secrets.BUTTONDOWN_API_KEY }}
+        run: |
+          python - <<'PYEOF'
+          import os, sys, datetime, pathlib
+
+          api_key = os.getenv("BUTTONDOWN_API_KEY", "").strip()
+          if not api_key:
+              print("BUTTONDOWN_API_KEY not set; skipping email send")
+              sys.exit(0)
+
+          now = datetime.datetime.utcnow()
+          isoweek = now.strftime("%G-W%V")
+
+          # Sentinel file tracks which ISO week was last emailed.
+          # Stored alongside the SQLite DB (persisted via actions/cache).
+          sentinel = pathlib.Path("data/.last-emailed-week")
+          if sentinel.exists() and sentinel.read_text().strip() == isoweek:
+              print(f"Digest already sent for {isoweek}; skipping")
+              sys.exit(0)
+
+          digest_path = pathlib.Path("docs/weekly/latest.md")
+          if not digest_path.exists():
+              print("No digest found; skipping")
+              sys.exit(0)
+
+          import httpx
+          content = digest_path.read_text()
+          subject = f"vLLM Weekly — {isoweek}"
+
+          resp = httpx.post(
+              "https://api.buttondown.com/v1/emails",
+              headers={"Authorization": f"Token {api_key}"},
+              json={"subject": subject, "body": content, "status": "about_to_send"},
+              timeout=30,
+          )
+          resp.raise_for_status()
+          print(f"Digest sent OK (HTTP {resp.status_code}): {subject}")
+
+          sentinel.parent.mkdir(parents=True, exist_ok=True)
+          sentinel.write_text(isoweek)
+          PYEOF
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

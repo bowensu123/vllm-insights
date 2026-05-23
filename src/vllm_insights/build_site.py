@@ -6,6 +6,7 @@ shell primitives and design tokens. The data each section renders is
 unchanged; this module only wires the data into the new chrome.
 """
 import json
+import os
 import re
 from datetime import datetime, timezone
 from html import escape
@@ -50,6 +51,7 @@ from .ui import (
     empty_state,
     progress_bar,
     section_shell,
+    subscribe_form,
 )
 
 
@@ -1368,15 +1370,17 @@ def _render_toc(sections: list[tuple[Section, str]]) -> str:
 
 
 def _render_hero(db_path: Path, repo_url: str) -> str:
-    """Hero block — eyebrow + takeaway + status strip + subscribe row."""
+    """Hero block — eyebrow + takeaway + status strip + subscribe form."""
     eyebrow, body_html = build_hero_takeaway(db_path)
     strip = build_status_strip(db_path)
+    sub = subscribe_form(os.getenv("BUTTONDOWN_USERNAME", ""))
     return f"""
 <section class="hero" aria-labelledby="hero-title">
   <p class="hero-eyebrow">{eyebrow}</p>
   <h1 class="hero-title" id="hero-title">A live view of what vLLM is shipping.</h1>
   <div class="hero-body">{body_html}</div>
   {strip}
+  {sub}
 </section>
 """
 

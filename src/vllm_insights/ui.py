@@ -221,6 +221,30 @@ def empty_state(title: str, body: str, *, kind: str = "neutral") -> str:
     )
 
 
+def subscribe_form(username: str) -> str:
+    """Buttondown email subscription form. Returns '' if *username* is not set.
+
+    Set the BUTTONDOWN_USERNAME env var to enable. The form posts to Buttondown's
+    embed endpoint and opens a confirmation popup so the visitor stays on the page.
+    """
+    if not username:
+        return ""
+    action = f"https://buttondown.com/api/emails/embed-subscribe/{escape(username)}"
+    popup = f"https://buttondown.com/{escape(username)}"
+    return (
+        f'<form class="subscribe-form" action="{action}" method="post"'
+        f' target="popupwindow" onsubmit="window.open(\'{popup}\',\'popupwindow\')">'
+        '<div class="sub-row">'
+        '<input class="sub-input" type="email" name="email"'
+        ' placeholder="your@email.com" required autocomplete="email"'
+        ' aria-label="Email address">'
+        '<button class="sub-btn" type="submit">Subscribe</button>'
+        '</div>'
+        '<p class="sub-hint">Weekly digest &middot; no spam &middot; unsubscribe anytime</p>'
+        '</form>'
+    )
+
+
 def progress_bar(label: str, current: int, total: int) -> str:
     """A labelled progress bar used for embedding backfill status etc."""
     pct = 0 if total <= 0 else min(100, int(current / total * 100))
@@ -412,4 +436,18 @@ footer.foot { margin-top: var(--s-7); padding-top: var(--s-3);
 *:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* Email subscription form */
+.subscribe-form { margin: var(--s-3) 0 0; }
+.sub-row { display: flex; gap: var(--s-2); flex-wrap: wrap; }
+.sub-input { flex: 1 1 180px; max-width: 260px; padding: 0.45rem 0.75rem;
+    border: 1px solid var(--border); border-radius: var(--r-sm);
+    background: var(--bg-2); color: var(--fg); font-size: var(--t-sm); }
+.sub-input:focus { outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft); }
+.sub-btn { padding: 0.45rem 1rem; background: var(--accent);
+    color: #fff; border: none; border-radius: var(--r-sm);
+    font-size: var(--t-sm); font-weight: 600; cursor: pointer; white-space: nowrap; }
+.sub-btn:hover { opacity: 0.88; }
+.sub-hint { font-size: var(--t-xs); color: var(--fg-3); margin: 0.3rem 0 0; }
 """
