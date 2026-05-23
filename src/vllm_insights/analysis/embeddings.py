@@ -40,24 +40,44 @@ from ..db import connect
 
 # Backend definitions. The 'model' is what we pass to the API; for GitHub
 # Models it's the `provider/name` form, for OpenAI direct it's just the name.
+#
+# Per-backend caps:
+#   batch        — how many inputs we pack into one POST
+#   pace_sec     — minimum wall-clock gap between successive POSTs. GH Models
+#                  free tier is ~15 requests/min on embeddings, so 4s is a
+#                  safe floor; OpenAI direct allows much more.
+#   max_batches  — soft per-run cap so a single sync doesn't blow the daily
+#                  quota. GH Models free tier is ~150 requests/day; we leave
+#                  headroom for retries / re-embeds. Hourly cron × 30 batches
+#                  × 32 inputs = ~23k PRs/day theoretical, capped at ~4800/day
+#                  by the daily request quota.
 _BACKENDS = {
     "github": {
         "url": "https://models.github.ai/inference/embeddings",
         "model": "openai/text-embedding-3-small",
         "env_token": "GITHUB_TOKEN",
-        # GitHub Models has stricter rate limits than OpenAI direct; smaller
-        # batch size + slightly longer back-off keeps us under the per-minute cap.
         "batch": 32,
+        "pace_sec": 4.0,
+        "max_batches": 30,
     },
     "openai": {
         "url": "https://api.openai.com/v1/embeddings",
         "model": "text-embedding-3-small",
         "env_token": "OPENAI_API_KEY",
         "batch": 96,
+        "pace_sec": 0.1,
+        "max_batches": 200,
     },
 }
 DEFAULT_DIM = 256
 TIMEOUT = 60.0
+
+
+class RateLimitExhausted(Exception):
+    """Server kept telling us to back off. Not a bug — just out of budget for
+    this run. Caller catches this and stops cleanly; remaining work resumes
+    on the next cron because we already committed prior batches."""
+    pass
 
 
 def _detect_backend(explicit: str | None = None) -> str | None:
@@ -100,27 +120,73 @@ def _prepare_text(title: str | None, body: str | None,
     return f"{title}\n\n{body}"
 
 
+def _sleep_from_headers(resp, attempt: int, *, cap: float = 60.0) -> float:
+    """Decide how long to sleep after a 429/503. Honors `Retry-After` first
+    (in seconds OR an HTTP-date), then falls back to capped exponential.
+    Returns the sleep duration so the caller can log it."""
+    ra = resp.headers.get("Retry-After") if resp is not None else None
+    if ra:
+        try:
+            sec = float(ra)
+            return min(max(sec, 1.0), cap)
+        except ValueError:
+            # HTTP-date format — bail to exponential rather than parse it
+            pass
+    # x-ratelimit-reset on GH Models gives a unix timestamp; if present, use it
+    if resp is not None:
+        reset = resp.headers.get("x-ratelimit-reset")
+        if reset:
+            try:
+                wait = int(reset) - int(time.time())
+                if 0 < wait < cap:
+                    return float(wait + 1)
+            except ValueError:
+                pass
+    return min(2 ** attempt, cap)
+
+
 def _post_batch(client: httpx.Client, url: str, key: str, inputs: list[str],
                 model: str, dim: int | None) -> list[list[float]]:
+    """One POST. Raises RateLimitExhausted if the server keeps backing us off."""
     payload: dict = {"model": model, "input": inputs}
     if dim:
         payload["dimensions"] = dim
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    last_status = None
     for attempt in range(6):
-        r = client.post(url, headers={
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        }, json=payload)
-        if r.status_code == 429:
+        try:
+            r = client.post(url, headers=headers, json=payload)
+        except httpx.HTTPError as e:
             time.sleep(min(2 ** attempt, 30))
+            last_status = f"network:{type(e).__name__}"
+            continue
+        last_status = r.status_code
+        if r.status_code in (429, 503):
+            wait = _sleep_from_headers(r, attempt)
+            print(f"  rate-limited ({r.status_code}); sleeping {wait:.0f}s "
+                  f"(attempt {attempt + 1}/6)")
+            time.sleep(wait)
             continue
         if r.status_code >= 500:
             time.sleep(min(2 ** attempt, 30))
             continue
+        if r.status_code == 403:
+            # Daily quota typically surfaces here ("RateLimitReached" body).
+            # No point retrying — caller should stop cleanly.
+            body = (r.text or "")[:300]
+            raise RateLimitExhausted(
+                f"403 on {url} (likely daily quota): {body}"
+            )
         r.raise_for_status()
         data = r.json()
         return [d["embedding"] for d in data["data"]]
-    raise RuntimeError(f"embeddings endpoint rate-limited 6x: {url}")
+    raise RateLimitExhausted(
+        f"embeddings endpoint backed off 6x (last={last_status}): {url}"
+    )
 
 
 def embed_entities(
@@ -180,13 +246,38 @@ def embed_entities(
     if not to_embed:
         return 0
 
+    pace_sec = cfg.get("pace_sec", 0.0)
+    max_batches = cfg.get("max_batches", 200)
+    total_batches = (len(to_embed) + batch - 1) // batch
+    print(f"  {len(to_embed)} entities to embed in {total_batches} batch(es); "
+          f"cap={max_batches} per run, pace={pace_sec}s")
+
     n_written = 0
+    n_batches = 0
     now_iso = datetime.now(timezone.utc).isoformat()
+    stopped_early = False
+    last_post_at = 0.0
     with httpx.Client(timeout=TIMEOUT) as client, connect(db_path) as conn:
         for i in range(0, len(to_embed), batch):
+            if n_batches >= max_batches:
+                stopped_early = True
+                print(f"  hit per-run cap ({max_batches} batches); resuming next run")
+                break
             chunk = to_embed[i:i + batch]
             texts = [t for _, t in chunk]
-            vectors = _post_batch(client, url, key, texts, model, dim)
+            # Pace requests so we stay under the per-minute limit.
+            gap = pace_sec - (time.time() - last_post_at)
+            if gap > 0:
+                time.sleep(gap)
+            try:
+                vectors = _post_batch(client, url, key, texts, model, dim)
+            except RateLimitExhausted as e:
+                # Persist what we already wrote; resume next run.
+                print(f"  rate-limit exhausted: {e}")
+                stopped_early = True
+                break
+            last_post_at = time.time()
+            n_batches += 1
             for (entity_id, text), vec in zip(chunk, vectors):
                 # Prepend the hash inside the JSON blob so cache lookup is one
                 # SQL prefix-match (avoids a separate column).
@@ -200,6 +291,8 @@ def embed_entities(
                     (kind, entity_id, model, len(vec), blob, now_iso),
                 )
                 n_written += 1
+    suffix = " (partial — more next run)" if stopped_early else ""
+    print(f"  wrote {n_written} new vector(s){suffix}")
     return n_written
 
 
