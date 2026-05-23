@@ -2,44 +2,13 @@
 
 _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-project/vllm)_
 
-## TL;DR
-This week saw significant improvements in model support and performance optimizations, particularly with FlashInfer and quantization enhancements. New features were added for Qwen models, and various bug fixes were implemented to enhance stability across different hardware platforms.
-
-## Kernels & attention
-- Enabled FlashInfer metadata support for Qwen2.5-VL vision attention, improving integration with vision models ([#42787](https://github.com/vllm-project/vllm/pull/42787)).
-- Added support for head_dim=512 in FlashInfer's TRTLLM attention backend ([#38822](https://github.com/vllm-project/vllm/pull/38822)).
-- Optimized the hidden state extraction logic, enhancing performance ([#37374](https://github.com/vllm-project/vllm/pull/37374)).
-
-## Quantization
-- Introduced FP8 block-scaled quantization on XPU, expanding quantization capabilities ([#42952](https://github.com/vllm-project/vllm/pull/42952)).
-- Fixed issues with FP8 quantization on unsupported GPUs, improving error handling ([#36854](https://github.com/vllm-project/vllm/pull/36854)).
-- Optimized NVFP4 fused MoE with mixed-precision dispatch, enhancing performance ([#42566](https://github.com/vllm-project/vllm/pull/42566)).
-
-## Parallelism & scheduling
-- Improved KV connector functionality by keeping the scheduler alive for delayed KV connector frees ([#43433](https://github.com/vllm-project/vllm/pull/43433)).
-- Enhanced auto-raising of max_num_batched_tokens for prefix-LM multimodal models, optimizing resource allocation ([#43051](https://github.com/vllm-project/vllm/pull/43051)).
-
-## Model support
-- Added support for Qwen3.5/3.6 VLM quantized prefix mapping, broadening model capabilities ([#42546](https://github.com/vllm-project/vllm/pull/42546)).
-- Implemented support for post-norm architecture in EAGLE-3 speculators, enhancing model versatility ([#42764](https://github.com/vllm-project/vllm/pull/42764)).
-- Introduced OpenVLA support, expanding the range of supported models ([#42654](https://github.com/vllm-project/vllm/pull/42654)).
-
-## Hardware
-- Added support for MXFP4 W4A16 MoE on CPU, improving compatibility with various hardware ([#41922](https://github.com/vllm-project/vllm/pull/41922)).
-- Enhanced CPU thread utilization, optimizing performance on CPU platforms ([#42666](https://github.com/vllm-project/vllm/pull/42666)).
-
-## API & serving
-- Simplified authentication middleware path extraction, improving API usability ([#43426](https://github.com/vllm-project/vllm/pull/43426)).
-- Added truncation side to OpenAI endpoints, enhancing compatibility with existing tools ([#43260](https://github.com/vllm-project/vllm/pull/43260)).
-
-## Watch list
-- Ongoing discussions regarding the removal of dead code and potential impacts on future releases ([#43144](https://github.com/vllm-project/vllm/pull/43144)).
-- Monitoring the integration of Rust frontend and its implications for existing APIs and performance ([#40848](https://github.com/vllm-project/vllm/pull/40848)).
+_LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
 ## PRs merged this window (223)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43488](https://github.com/vllm-project/vllm/pull/43488) [Docs] Fix stale version number in token_embed.md — @fuergaosi233 → `nan`
 - [#42787](https://github.com/vllm-project/vllm/pull/42787) [MM] Enable FlashInfer metadata support for Qwen2.5-VL vision attention — @huanghua1994 → `nan`
 - [#43414](https://github.com/vllm-project/vllm/pull/43414) [Bugfix][Frontend] Fix input_audio parsing when uuid is present  — @ffggs → `nan`
 - [#41669](https://github.com/vllm-project/vllm/pull/41669) [ROCm][CI] Remove benchmarks test group and shard long test groups — @AndreasKaratzas → `nan`
@@ -99,7 +68,6 @@ This week saw significant improvements in model support and performance optimiza
 - [#40841](https://github.com/vllm-project/vllm/pull/40841) [Frontend] DP Supervisor — @yewentao256 → `nan`
 - [#43260](https://github.com/vllm-project/vllm/pull/43260) [Frontend] Add truncation side to OpenAI endpoints — @ruizhang99 → `nan`
 - [#43236](https://github.com/vllm-project/vllm/pull/43236) [ROCm][CI] add warmup to mem_util test before measurement — @divakar-amd → `nan`
-- [#41753](https://github.com/vllm-project/vllm/pull/41753) [ROCm] Add XGMI backend for MoRI Connector — @simondanielsson → `nan`
 - _…and 163 more_
 
 </details>
