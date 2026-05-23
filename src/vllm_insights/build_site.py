@@ -136,6 +136,29 @@ PAGE_CSS = DESIGN_TOKENS_CSS + COMPONENTS_CSS + """
 .act-warm  { color: var(--watch); font-weight: 600; }
 .act-cold  { color: var(--fg-3); }
 
+/* Collapsible vendor card */
+.vc-d { }
+.vc-summary {
+  cursor: pointer; list-style: none; user-select: none;
+  display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+  padding: .15rem 0; }
+.vc-summary::-webkit-details-marker { display: none; }
+.vc-stats {
+  display: flex; gap: .4rem; align-items: center; flex-wrap: wrap;
+  font-size: var(--t-xs); color: var(--fg-3); margin-left: auto; }
+.vc-stat {
+  white-space: nowrap; padding: .1rem .35rem; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--bg-3); }
+.vc-new     { color: var(--new);  background: var(--new-bg);  border-color: var(--new); }
+.vc-removed { color: var(--hot);  background: var(--hot-bg);  border-color: var(--hot); }
+.vc-chevron { color: var(--fg-3); font-size: var(--t-sm); flex-shrink: 0;
+  transition: transform 200ms; }
+.vc-chevron::after { content: '▾'; }
+details[open].vc-d > summary .vc-chevron { transform: rotate(180deg); }
+.vc-body {
+  padding-top: var(--s-2); border-top: 1px solid var(--border-soft);
+  margin-top: .3rem; display: flex; flex-direction: column; gap: .55rem; }
+
 /* Digest pointer block */
 .digest-pointer { display: block; padding: .8rem 1rem; margin: 1rem 0 1.5rem;
     border: 1px solid var(--border-soft); border-radius: var(--r-md);
@@ -454,18 +477,45 @@ def _render_focus_grid(
             + '</div>'
         )
 
+        # Summary stat chips shown at a glance in the collapsed header
+        stat_chips: list[str] = [f'<span class="vc-stat">{total} arch{"s" if total != 1 else ""}</span>']
+        if pr_count_90d:
+            stat_chips.append(
+                f'<span class="vc-stat {activity_class}">'
+                f'{pr_count_90d} PR{"s" if pr_count_90d != 1 else ""} / 90d</span>'
+            )
+        if items:
+            stat_chips.append(
+                f'<span class="vc-stat vc-new">{len(items)} new</span>'
+            )
+        if removed_archs:
+            stat_chips.append(
+                f'<span class="vc-stat vc-removed">{len(removed_archs)} dropped</span>'
+            )
+        stats_html = "".join(stat_chips)
+
+        body_parts: list[str] = []
+        if cat_pills:
+            body_parts.append(
+                f'<div class="row"><span class="row-label">Categories</span>{cat_pills}</div>'
+            )
+        if arch_blocks:
+            body_parts.append('<div class="arch-list">' + "".join(arch_blocks) + '</div>')
+        body_parts.append(activity_html)
+        body_parts.append(new_block)
+        body_parts.append(registry_meta)
+
         cards.append(
             '<div class="vendor-card">'
-            f'<div class="vendor-head"><span class="vendor-name">{head}</span></div>'
-            + (
-                f'<div class="row"><span class="row-label">Categories</span>{cat_pills}</div>'
-                if cat_pills else ""
-            )
-            + ('<div class="arch-list">' + "".join(arch_blocks) + '</div>' if arch_blocks else "")
-            + activity_html
-            + new_block
-            + registry_meta
-            + "</div>"
+            '<details class="vc-d">'
+            '<summary class="vc-summary">'
+            f'<span class="vendor-name">{head}</span>'
+            f'<span class="vc-stats">{stats_html}</span>'
+            '<span class="vc-chevron" aria-hidden="true"></span>'
+            '</summary>'
+            f'<div class="vc-body">{"".join(body_parts)}</div>'
+            '</details>'
+            '</div>'
         )
 
     return '<div class="vendor-grid">' + "\n".join(cards) + "</div>"
