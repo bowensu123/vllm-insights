@@ -26,7 +26,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      GITHUB_TOKEN: ${{ secrets.GH_DATA_TOKEN || secrets.GITHUB_TOKEN }}
+      # GitHub auto-injects a fresh GITHUB_TOKEN per run; it has plenty of
+      # quota for everything we do (public-repo reads + models:read +
+      # writing to this repo). The old GH_DATA_TOKEN override was useful for
+      # bumping rate limits but caused 401s once the PAT expired, so we no
+      # longer fall back to it. To re-enable: add `${{ secrets.GH_DATA_TOKEN
+      # }}` here and make sure the PAT is current.
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GITHUB_REPO: vllm-project/vllm
       DB_PATH: ./data/insights.sqlite
 
