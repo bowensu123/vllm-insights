@@ -31,7 +31,7 @@ from .registry_sync import sync_registry
 from .source_scan import sync_source_inventory
 from .summarize import summarize_window, summarize_release
 from .build_site import build_index, build_report_index
-from .feed import build_feed, build_feature_pages
+from .feed import build_feed, build_feature_pages, build_about_page, build_sitemap
 
 app = typer.Typer(add_completion=False, help="vLLM GitHub insights CLI")
 console = Console()
@@ -294,9 +294,13 @@ def site(
     build_report_index(docs / "weekly", "Weekly themed digests")
     n_feat = build_feature_pages(s.db_path, docs, repo=s.repo)
     feed_path = build_feed(s.db_path, docs)
+    about_path = build_about_page(docs)
+    sitemap_path = build_sitemap(docs)
     console.print(f"[green]Site built:[/] {idx}")
     console.print(f"[green]Feature pages:[/] {n_feat} files under {docs}/features/")
+    console.print(f"[green]About page:[/] {about_path}")
     console.print(f"[green]Atom feed:[/] {feed_path}")
+    console.print(f"[green]Sitemap:[/] {sitemap_path}")
 
 
 @app.command()

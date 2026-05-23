@@ -1,15 +1,11 @@
-"""Build a static HTML dashboard under docs/ for GitHub Pages.
+"""Build the static homepage + supporting pages under docs/ for GitHub Pages.
 
-Audience: vLLM serving engineers and people sizing up vLLM for production.
-The page is organised around the decisions those readers actually make:
-
-  1. Upgrade decision for the latest release (LLM-generated verdict)
-  2. Capability matrix — what works on which hardware, today
-  3. Supported-models compatibility focus — backed by a live mirror of
-     `vllm/model_executor/models/registry.py`
-  4. Weekly themed digest pointer
-  5. Activity stats — demoted into a collapsed details block at the bottom
+The page is composed of product-shaped sections (hero + collapsible
+sections in a 2-column layout with a floating ToC) — see `ui.py` for the
+shell primitives and design tokens. The data each section renders is
+unchanged; this module only wires the data into the new chrome.
 """
+import json
 import re
 from datetime import datetime, timezone
 from html import escape
@@ -33,6 +29,7 @@ from .analyzer.queries import (
 )
 from .capability import CAPABILITY_CSS, render_capability_matrix
 from .db import connect
+from .hero import build_hero_takeaway, build_status_strip, _backfill_progress
 from .models import (
     FOCUS_VENDORS,
     classify as classify_model,
@@ -45,251 +42,214 @@ from .models import (
 )
 from .registry_sync import load_registry
 from .summarize import link_refs
+from .ui import (
+    COMPONENTS_CSS,
+    DESIGN_TOKENS_CSS,
+    Section,
+    badge,
+    empty_state,
+    progress_bar,
+    section_shell,
+)
 
 
-PAGE_CSS = """
-:root { color-scheme: light dark; }
-body { font-family: -apple-system, Segoe UI, Helvetica, Arial, sans-serif;
-       max-width: 1200px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
-header { border-bottom: 1px solid #ddd3; padding-bottom: 1rem; margin-bottom: 1.5rem; }
-h1 { margin: 0 0 .3rem; font-size: 1.6rem; }
-h2 { margin-top: 2rem; font-size: 1.25rem; border-bottom: 1px solid #ddd3; padding-bottom: .3rem; }
-h3 { margin-top: 1.2rem; margin-bottom: .4rem; font-size: 1.05rem; }
+PAGE_CSS = DESIGN_TOKENS_CSS + COMPONENTS_CSS + """
+/* ----- Section-specific styles (tables, cards, charts) ----- */
+
+/* Capability cards still use their own table styling */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
          gap: .75rem; margin: 1rem 0; }
-.card { padding: .75rem 1rem; border: 1px solid #ddd5; border-radius: 8px; }
-.card .v { font-size: 1.5rem; font-weight: 600; }
-.card .l { font-size: .8rem; opacity: .7; }
-nav a { margin-right: 1rem; }
-footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #ddd3;
-         opacity: .65; font-size: .85rem; }
+.card { padding: .75rem 1rem; border: 1px solid var(--border-soft); border-radius: var(--r-md);
+        background: var(--bg-2); }
+.card .v { font-size: 1.4rem; font-weight: 600; }
+.card .l { font-size: .8rem; color: var(--fg-3); }
 .chart { margin: 1rem 0; }
 
+/* Release-verdict summary box (the LLM output for the latest release) */
 .release-summary {
-  border-left: 3px solid #6cf;
-  background: rgba(102,204,255,.08);
-  padding: .25rem 1.2rem 1rem;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  padding: .25rem 1.1rem 1rem;
   margin: 1rem 0 1.5rem;
-  border-radius: 0 6px 6px 0;
+  border-radius: 0 var(--r-md) var(--r-md) 0;
 }
-.release-summary > summary {
-  cursor: pointer;
-  font-weight: 600;
-  font-size: .85rem;
-  text-transform: uppercase;
-  letter-spacing: .05em;
-  padding: .5rem 0;
-  list-style: revert;
-  opacity: .8;
-}
-.release-summary > summary:hover { opacity: 1; }
-.release-summary h3 { margin-top: 1rem; font-size: 1rem;
-                      text-transform: uppercase; letter-spacing: .04em;
-                      opacity: .85; border-bottom: 1px dashed #6664;
-                      padding-bottom: .25rem; }
-.release-summary h3:first-child { margin-top: .8rem; }
-.release-summary p { margin: .4rem 0; }
+.release-summary > summary { cursor: pointer; font-weight: 600;
+    font-size: .82rem; text-transform: uppercase; letter-spacing: .05em;
+    padding: .5rem 0; list-style: revert; color: var(--fg-2); }
+.release-summary > summary:hover { color: var(--fg); }
+.release-summary h3 { margin-top: 1rem; font-size: .98rem;
+    text-transform: uppercase; letter-spacing: .04em;
+    color: var(--fg); border-bottom: 1px dashed var(--border);
+    padding-bottom: .25rem; }
+.release-summary p { margin: .4rem 0; color: var(--fg); }
 .release-summary ul { padding-left: 1.4rem; margin: .4rem 0; }
-.release-summary li { margin: .25rem 0; }
+.release-summary li { margin: .25rem 0; color: var(--fg); }
 .release-summary .meta { display: block; margin-top: 1rem;
-                         font-size: .75rem; opacity: .55; }
+    font-size: .72rem; color: var(--fg-3); }
 
-/* Supported-models / vLLM compatibility cards */
-.models-intro { font-size: .9rem; opacity: .75; margin: .2rem 0 1rem; }
+/* Vendor cards (supported-models grid) */
+.models-intro { font-size: .9rem; color: var(--fg-2); margin: .2rem 0 1rem; }
 .vendor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
                gap: .9rem; margin: .6rem 0 1.4rem; }
-.vendor-card { border: 1px solid #ddd5; border-radius: 8px; padding: .8rem 1rem;
-               background: rgba(127,127,127,.04); display: flex; flex-direction: column; gap: .55rem; }
+.vendor-card { border: 1px solid var(--border-soft); border-radius: var(--r-md);
+    padding: .85rem 1rem; background: var(--bg-2);
+    display: flex; flex-direction: column; gap: .55rem; }
 .vendor-card .vendor-head { display: flex; align-items: baseline; gap: .5rem;
-                            flex-wrap: wrap; }
-.vendor-card .vendor-name { font-size: 1.05rem; font-weight: 600; }
-.vendor-card .vendor-name a { text-decoration: none; }
-.vendor-card .vendor-name a:hover { text-decoration: underline; }
-.vendor-card .tagline { font-size: .85rem; opacity: .75; margin: 0; }
-.vendor-card .row-label { font-size: .68rem; font-weight: 600;
-                          text-transform: uppercase; letter-spacing: .08em;
-                          opacity: .55; margin-right: .35rem; }
+    flex-wrap: wrap; }
+.vendor-card .vendor-name { font-size: 1.02rem; font-weight: 600; }
+.vendor-card .vendor-name a { color: var(--fg); }
+.vendor-card .vendor-name a:hover { color: var(--accent); }
+.vendor-card .tagline { font-size: .85rem; color: var(--fg-2); margin: 0; }
+.vendor-card .row-label { font-size: .65rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .08em;
+    color: var(--fg-3); margin-right: .35rem; }
 .vendor-card .row { font-size: .8rem; line-height: 1.7; }
 .pill { display: inline-block; padding: .05rem .45rem; margin: 0 .2rem .2rem 0;
-        border-radius: 10px; border: 1px solid #8884; font-size: .72rem;
-        background: rgba(127,127,127,.07); white-space: nowrap; }
+    border-radius: 10px; border: 1px solid var(--border); font-size: .72rem;
+    background: var(--bg-3); white-space: nowrap; color: var(--fg-2); }
 .pill.arch { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-             font-size: .68rem; border-color: #6cf6; background: rgba(102,204,255,.08); }
-.pill.modal { text-transform: capitalize; border-color: #9c6f; background: rgba(160,120,255,.1); }
-.pill.feat  { border-color: #6c96; background: rgba(102,200,150,.08); }
+    font-size: .68rem; border-color: var(--accent); color: var(--accent);
+    background: var(--accent-soft); }
+.pill.modal { text-transform: capitalize; border-color: var(--derived);
+    color: var(--derived); background: var(--derived-bg); }
+.pill.feat { border-color: var(--new); color: var(--new); background: var(--new-bg); }
 .vendor-card .new-list { margin: .25rem 0 0; padding-left: 1.1rem; font-size: .82rem; }
 .vendor-card .new-list li { margin: .15rem 0; }
-.vendor-card .no-new { font-size: .78rem; opacity: .55; font-style: italic; margin: 0; }
+.vendor-card .no-new { font-size: .78rem; color: var(--fg-3); font-style: italic; margin: 0; }
 .vendor-card .pill.arch.removed {
-    text-decoration: line-through;
-    opacity: .45;
-    border-color: #c66a;
-    background: rgba(220,80,80,.08);
+    text-decoration: line-through; opacity: .55;
+    border-color: var(--hot); color: var(--hot); background: var(--hot-bg);
 }
 .vendor-card .arch-list { display: flex; flex-direction: column; gap: .4rem; }
 .vendor-card .arch-group { display: block; }
 .vendor-card .arch-cat { font-size: .65rem; font-weight: 600;
-    text-transform: uppercase; letter-spacing: .06em; opacity: .55;
+    text-transform: uppercase; letter-spacing: .06em; color: var(--fg-3);
     margin-right: .45rem; }
-.vendor-card .arch-cat.removed-cat { color: #c66; opacity: .8; }
+.vendor-card .arch-cat.removed-cat { color: var(--hot); opacity: .9; }
 .vendor-card .vendor-activity { font-size: .78rem;
-    border-top: 1px dashed #6663; padding-top: .4rem; }
-.vendor-card .vendor-activity .row-label { display: block;
-    margin-bottom: .15rem; }
-.vendor-card .registry-meta { font-size: .68rem; opacity: .5;
-    border-top: 1px dashed #6663; padding-top: .35rem; margin-top: .2rem; }
-
-/* Positioning header + audience line */
-.lede { font-size: .95rem; opacity: .85; margin: .4rem 0 .2rem; max-width: 70ch; }
-.audience { font-size: .8rem; opacity: .55; margin: 0; }
-.section-lede { font-size: .88rem; opacity: .8; margin: .3rem 0 .8rem; max-width: 75ch; }
+    border-top: 1px dashed var(--border); padding-top: .4rem; }
+.vendor-card .vendor-activity .row-label { display: block; margin-bottom: .15rem; }
+.vendor-card .registry-meta { font-size: .68rem; color: var(--fg-3);
+    border-top: 1px dashed var(--border); padding-top: .35rem; margin-top: .2rem; }
+.act-hot   { color: var(--new); font-weight: 700; }
+.act-warm  { color: var(--watch); font-weight: 600; }
+.act-cold  { color: var(--fg-3); }
 
 /* Digest pointer block */
-.digest-pointer {
-    display: block; padding: .8rem 1rem; margin: 1rem 0 1.5rem;
-    border: 1px solid #ddd5; border-radius: 8px;
-    background: rgba(127,127,127,.04); text-decoration: none; color: inherit;
-}
-.digest-pointer:hover { background: rgba(102,204,255,.08); border-color: #6cf8; }
-.digest-pointer h3 { margin: 0 0 .25rem; font-size: 1rem; }
-.digest-pointer p { margin: 0; font-size: .85rem; opacity: .75; }
+.digest-pointer { display: block; padding: .8rem 1rem; margin: 1rem 0 1.5rem;
+    border: 1px solid var(--border-soft); border-radius: var(--r-md);
+    background: var(--bg-2); text-decoration: none; color: inherit;
+    transition: border-color 150ms ease; }
+.digest-pointer:hover { border-color: var(--accent); background: var(--accent-soft); }
+.digest-pointer h3 { margin: 0 0 .25rem; font-size: 1rem; color: var(--fg); }
+.digest-pointer p { margin: 0; font-size: .85rem; color: var(--fg-2); }
 
-/* Forks */
-section.forks { margin: 2rem 0 1rem; }
+/* Forks list */
 ul.fork-list { list-style: none; padding: 0; }
-ul.fork-list > li { padding: .55rem 0; border-bottom: 1px solid #ddd3; font-size: .9rem; }
+ul.fork-list > li { padding: .55rem 0; border-bottom: 1px solid var(--border-soft); font-size: .9rem; }
 ul.fork-list > li:last-child { border-bottom: 0; }
-.fork-meta { font-size: .72rem; opacity: .65; margin-left: .4rem; }
+.fork-meta { font-size: .72rem; color: var(--fg-3); margin-left: .4rem; }
 ul.fork-commits { margin: .35rem 0 .1rem 1rem; padding-left: .8rem;
-    border-left: 2px solid #6cf4; font-size: .78rem; }
-ul.fork-commits li { padding: .15rem 0; opacity: .85; }
-ul.fork-commits code { font-size: .72rem; opacity: .9; }
-.fork-c-meta { opacity: .55; font-size: .68rem; }
+    border-left: 2px solid var(--accent); font-size: .78rem; }
+ul.fork-commits li { padding: .15rem 0; color: var(--fg-2); }
+.fork-c-meta { color: var(--fg-3); font-size: .68rem; }
 
-/* Discovered topics */
-section.topics { margin: 2rem 0 1rem; }
-section.topics h3 { margin-top: 1rem; font-size: .95rem; opacity: .8;
-    text-transform: uppercase; letter-spacing: .05em; }
+/* Topic grid */
 .topic-grid { display: flex; flex-wrap: wrap; gap: .4rem; margin: .4rem 0 .8rem; }
 .topic-pill { padding: .35rem .7rem; border-radius: 12px;
-    border: 1px solid #6cf6; background: rgba(102,204,255,.07);
+    border: 1px solid var(--accent); background: var(--accent-soft);
     display: flex; flex-direction: column; gap: .1rem; min-width: 110px; }
-.topic-label { font-size: .82rem; font-weight: 600; }
-.topic-size { font-size: .68rem; opacity: .7; }
+.topic-label { font-size: .82rem; font-weight: 600; color: var(--fg); }
+.topic-size { font-size: .68rem; color: var(--fg-3); }
 
 /* Issue hotspots */
-section.hotspots { margin: 2rem 0 1rem; }
 ul.hotspot-list { list-style: none; padding: 0; }
-ul.hotspot-list li { padding: .35rem 0; border-bottom: 1px solid #ddd3;
+ul.hotspot-list li { padding: .35rem 0; border-bottom: 1px solid var(--border-soft);
     font-size: .88rem; }
-ul.hotspot-list a { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    text-decoration: none; opacity: .85; }
-ul.hotspot-list a:hover { opacity: 1; text-decoration: underline; }
-.hot-count { font-size: .7rem; opacity: .7; margin-left: .4rem;
-    padding: .02rem .35rem; border-radius: 4px;
-    background: rgba(255,170,40,.12); border: 1px solid #b8862b66;
-    color: #b8862b; }
+ul.hotspot-list a { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.hot-count { font-size: .7rem; color: var(--watch); margin-left: .4rem;
+    padding: .02rem .35rem; border-radius: 4px; background: var(--watch-bg);
+    border: 1px solid var(--watch); }
 
-/* Release drift */
-section.drift { margin: 2rem 0 1rem; }
+/* Drift table */
 table.drift-table { border-collapse: collapse; width: 100%; font-size: .85rem;
     margin-top: .4rem; }
 table.drift-table th, table.drift-table td {
-    padding: .35rem .55rem; border-bottom: 1px solid #ddd3;
-    text-align: left; vertical-align: middle;
-}
-table.drift-table th { font-size: .72rem; text-transform: uppercase;
-    letter-spacing: .04em; opacity: .8; }
+    padding: .35rem .55rem; border-bottom: 1px solid var(--border-soft);
+    text-align: left; vertical-align: middle; }
+table.drift-table th { font-size: .68rem; text-transform: uppercase;
+    letter-spacing: .04em; color: var(--fg-3); }
 table.drift-table td.dir code { font-size: .78rem; }
-table.drift-table td.files { width: 5rem; text-align: right; opacity: .8; }
+table.drift-table td.files { width: 5rem; text-align: right; color: var(--fg-3); }
 table.drift-table td.changes { font-size: .78rem; position: relative; }
-.changes-bar { height: 3px; background: linear-gradient(90deg, #6c9 0%, #b85 100%);
+.changes-bar { height: 3px; background: linear-gradient(90deg, var(--new) 0%, var(--watch) 100%);
     margin-top: .25rem; border-radius: 2px; }
 
-/* Perf claims (author-asserted deltas) */
-section.perf-claims { margin: 2rem 0 1rem; }
-ul.claims-list { list-style: none; padding: 0; }
-ul.claims-list li { padding: .35rem 0; border-bottom: 1px solid #ddd3;
-    font-size: .88rem; display: flex; flex-wrap: wrap; align-items: baseline;
-    gap: .35rem; }
-.claim-snip { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: .82rem; color: #2c8f48; font-weight: 600; }
-.claim-tag { padding: .02rem .35rem; border-radius: 4px; font-size: .68rem;
-    border: 1px solid #8884; opacity: .85; }
-.claim-tag.hw { background: rgba(102,204,255,.1); border-color: #6cf6; }
-.claim-tag.model { background: rgba(160,120,255,.1); border-color: #9c6f; }
-section.perf-claims .footnote { font-size: .72rem; opacity: .55;
-    margin: .6rem 0 0; }
-
-/* Growth-over-time charts */
-section.trends { margin: 2rem 0 1rem; }
-section.trends .chart { margin: .8rem 0; }
-
-/* Topic momentum */
-section.momentum { margin: 2rem 0 1rem; }
-.momentum-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-@media (max-width: 700px) { .momentum-grid { grid-template-columns: 1fr; } }
-.momentum-col h3 { font-size: .95rem; margin: .3rem 0 .4rem;
-    text-transform: uppercase; letter-spacing: .04em; opacity: .75; }
-.momentum-col ul { list-style: none; padding: 0; margin: 0; }
-.momentum-col li { display: flex; justify-content: space-between;
-    padding: .3rem 0; border-bottom: 1px solid #ddd3; font-size: .85rem; }
-.momentum-col li:last-child { border-bottom: 0; }
-.momentum-col .topic-label { font-weight: 500; }
-.momentum-col .momentum.up   { color: #2c8f48; font-size: .8rem; font-family: ui-monospace, Menlo, monospace; }
-.momentum-col .momentum.down { color: #b85; font-size: .8rem; font-family: ui-monospace, Menlo, monospace; }
-.momentum-col .momentum .ratio { opacity: .75; font-weight: 600; margin-left: .3rem; }
-
-/* Community temperature */
-section.social { margin: 2rem 0 1rem; }
-section.social h3 { font-size: .95rem; margin-top: 1rem;
-    text-transform: uppercase; letter-spacing: .04em; opacity: .75; }
-ul.hot-prs, ul.hn-list { list-style: none; padding: 0; }
-ul.hot-prs li, ul.hn-list li { padding: .35rem 0; border-bottom: 1px solid #ddd3;
-    font-size: .85rem; display: flex; flex-wrap: wrap; align-items: baseline;
-    gap: .4rem; }
-.react-total { font-weight: 700; font-size: .85rem; min-width: 2rem;
-    color: #b8862b; }
-.react-em { font-size: .78rem; opacity: .8; font-family: -apple-system, sans-serif; }
-.hn-points { font-weight: 700; color: #ff6600; min-width: 3rem; font-size: .85rem;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.hn-meta { font-size: .72rem; opacity: .65; margin-left: .35rem; }
-.hn-meta a { color: inherit; }
-
-/* Benchmarks */
-section.benchmarks { margin: 2rem 0 1rem; }
+/* Bench table */
 table.bench-table { border-collapse: collapse; width: 100%; font-size: .82rem;
     margin-top: .4rem; }
 table.bench-table th, table.bench-table td {
-    padding: .3rem .5rem; border-bottom: 1px solid #ddd3; text-align: left;
-}
+    padding: .3rem .5rem; border-bottom: 1px solid var(--border-soft); text-align: left;
+    color: var(--fg); }
+table.bench-table th { color: var(--fg-3); font-size: .68rem;
+    text-transform: uppercase; letter-spacing: .04em; }
 table.bench-table th.num, table.bench-table td.num { text-align: right;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-table.bench-table td.obs { font-size: .72rem; opacity: .7;
+table.bench-table td.obs { font-size: .72rem; color: var(--fg-3);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
-/* Open issues block */
-section.open-issues { margin: 2rem 0 1rem; }
-section.open-issues h2 { margin-bottom: .3rem; }
-ul.issue-list { list-style: none; padding: 0; margin: .4rem 0; }
-ul.issue-list li { padding: .35rem 0; border-bottom: 1px solid #ddd3;
-    font-size: .88rem; }
-ul.issue-list li:last-child { border-bottom: 0; }
-ul.issue-list li a { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    text-decoration: none; opacity: .85; }
-ul.issue-list li a:hover { opacity: 1; text-decoration: underline; }
-.issue-label { display: inline-block; font-size: .68rem;
-    padding: .02rem .35rem; margin-left: .2rem; border-radius: 6px;
-    border: 1px solid #8884; background: rgba(127,127,127,.07);
-    opacity: .8; }
-.issue-meta { font-size: .72rem; opacity: .55; margin-left: .4rem; }
+/* Perf claims */
+ul.claims-list { list-style: none; padding: 0; }
+ul.claims-list li { padding: .35rem 0; border-bottom: 1px solid var(--border-soft);
+    font-size: .88rem; display: flex; flex-wrap: wrap; align-items: baseline; gap: .35rem; }
+.claim-snip { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .82rem; color: var(--new); font-weight: 700; }
+.claim-tag { padding: .02rem .35rem; border-radius: 4px; font-size: .68rem;
+    border: 1px solid var(--border); color: var(--fg-2); }
+.claim-tag.hw { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.claim-tag.model { background: var(--derived-bg); border-color: var(--derived); color: var(--derived); }
+.footnote { font-size: .72rem; color: var(--fg-3); margin: .6rem 0 0; }
 
-/* Activity stats collapsed at the bottom */
-details.activity > summary {
-    cursor: pointer; font-weight: 600; padding: .6rem 0;
-    font-size: 1rem; border-bottom: 1px solid #ddd3;
+/* Momentum grid */
+.momentum-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+@media (max-width: 700px) { .momentum-grid { grid-template-columns: 1fr; } }
+.momentum-col h3 { font-size: .82rem; margin: .3rem 0 .4rem;
+    text-transform: uppercase; letter-spacing: .04em; color: var(--fg-3); }
+.momentum-col ul { list-style: none; padding: 0; margin: 0; }
+.momentum-col li { display: flex; justify-content: space-between;
+    padding: .3rem 0; border-bottom: 1px solid var(--border-soft); font-size: .85rem; }
+.momentum-col .topic-label { font-weight: 500; }
+.momentum-col .momentum.up   { color: var(--new); font-size: .8rem; font-family: ui-monospace, Menlo, monospace; }
+.momentum-col .momentum.down { color: var(--watch); font-size: .8rem; font-family: ui-monospace, Menlo, monospace; }
+.momentum-col .momentum .ratio { color: var(--fg); font-weight: 600; margin-left: .3rem; }
+
+/* Social */
+ul.hot-prs, ul.hn-list { list-style: none; padding: 0; }
+ul.hot-prs li, ul.hn-list li { padding: .35rem 0;
+    border-bottom: 1px solid var(--border-soft); font-size: .85rem;
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem; }
+.react-total { font-weight: 700; font-size: .85rem; min-width: 2rem; color: var(--watch); }
+.react-em { font-size: .78rem; color: var(--fg-2); font-family: -apple-system, sans-serif; }
+.hn-points { font-weight: 700; color: #ff6600; min-width: 3rem; font-size: .85rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.hn-meta { font-size: .72rem; color: var(--fg-3); margin-left: .35rem; }
+
+/* Issue label chips */
+.issue-label { display: inline-block; font-size: .65rem;
+    padding: .02rem .35rem; margin-left: .2rem; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--bg-3); color: var(--fg-2); }
+.issue-meta { font-size: .7rem; color: var(--fg-3); margin-left: .4rem; }
+
+/* Mobile: hide horizontal-scrolling tables in favour of stacked cards */
+@media (max-width: 760px) {
+  .cap-table thead { display: none; }
+  .cap-table tbody, .cap-table tr, .cap-table td { display: block; width: 100%; }
+  .cap-table tr { border: 1px solid var(--border-soft); border-radius: var(--r-md);
+    padding: .5rem .7rem; margin-bottom: .5rem; background: var(--bg-2); }
+  .cap-table td { border: 0; padding: .2rem 0; }
+  .cap-table td.feat { font-size: .9rem; }
+  .cap-table td.path { font-size: .7rem; word-break: break-all; }
 }
-details.activity[open] > summary { margin-bottom: 1rem; }
 """ + CAPABILITY_CSS
 
 
@@ -520,16 +480,15 @@ def _render_focus_grid(
     return '<div class="vendor-grid">' + "\n".join(cards) + "</div>" + footer
 
 
-def _render_latest_release(db_path: Path, repo: str) -> str:
-    """Section showing the latest stable release + LLM summary + supported models."""
-    import markdown as md
+def _latest_release_payload(db_path: Path) -> dict | None:
+    """Single helper used by both the release + supported-models sections."""
     with connect(db_path) as conn:
         row = conn.execute(
             "SELECT tag, name, published_at, url FROM releases "
             "WHERE is_prerelease = 0 ORDER BY published_at DESC LIMIT 1"
         ).fetchone()
         if not row:
-            return ""
+            return None
         latest = dict(row)
         sections = conn.execute(
             "SELECT section, item FROM release_sections WHERE tag = ?",
@@ -539,56 +498,65 @@ def _render_latest_release(db_path: Path, repo: str) -> str:
             "SELECT summary, model, backend FROM release_summaries WHERE tag = ?",
             (latest["tag"],),
         ).fetchone()
+    latest["sections"] = [dict(s) for s in sections]
+    latest["summary_row"] = dict(summary_row) if summary_row else None
+    return latest
 
-    tag = latest["tag"]
-    rel_url = latest["url"] or f"https://github.com/{repo}/releases/tag/{tag}"
-    name = latest.get("name") or tag
 
-    # Group items from model-related sections by detected vendor. We only
-    # surface entries that belong to one of the curated focus vendors
-    # (Qwen / DeepSeek / MiniMax / GLM / Meta / Google / Microsoft); everything
-    # else from the release notes is intentionally dropped from this section.
-    by_focus: dict[str, list[tuple[str, str]]] = {}
-    for s in sections:
-        if not looks_like_model_section(s["section"]):
-            continue
-        cls = classify_model(s["item"])
-        if not cls:
-            continue
-        vendor, org = cls
-        if is_focus_vendor(vendor):
-            by_focus.setdefault(vendor, []).append((s["item"], org))
+def _render_latest_release(db_path: Path, repo: str) -> tuple[str, str]:
+    """Render the release-verdict section body. Returns (body_html, tag)."""
+    import markdown as md
+    payload = _latest_release_payload(db_path)
+    if not payload:
+        return "", ""
 
-    vendor_html = _render_focus_grid(by_focus, db_path, repo)
-
-    published = latest["published_at"][:10] if latest.get("published_at") else "?"
+    tag = payload["tag"]
+    rel_url = payload["url"] or f"https://github.com/{repo}/releases/tag/{tag}"
+    name = payload.get("name") or tag
+    published = payload["published_at"][:10] if payload.get("published_at") else "?"
 
     summary_html = ""
-    if summary_row:
-        rendered = md.markdown(summary_row["summary"], extensions=["tables", "fenced_code"])
+    if payload["summary_row"]:
+        rendered = md.markdown(payload["summary_row"]["summary"],
+                              extensions=["tables", "fenced_code"])
         meta = (
-            f"<span class='meta'>LLM summary · "
-            f"{escape(summary_row['backend'] or '?')} / "
-            f"{escape(summary_row['model'] or '?')}</span>"
+            f"<span class='meta'>LLM summary &middot; "
+            f"{escape(payload['summary_row']['backend'] or '?')} / "
+            f"{escape(payload['summary_row']['model'] or '?')}</span>"
         )
         summary_html = (
             "<details open class='release-summary'>"
-            "<summary>Upgrade verdict (LLM-generated)</summary>"
+            "<summary>Upgrade verdict</summary>"
             f"{rendered}{meta}"
             "</details>"
         )
 
-    return f"""
-<h2>Latest release &mdash; {escape(tag)}</h2>
+    body = f"""
 <p>
   <a href="{escape(rel_url)}" target="_blank" rel="noopener"><strong>{escape(tag)}</strong></a>
   {escape("— " + name) if name and name != tag else ""}
-  <span style="opacity:.7">· published {escape(published)}</span>
+  <span style="color:var(--fg-3)">&middot; published {escape(published)}</span>
 </p>
 {summary_html}
-<h3>Supported models</h3>
-{vendor_html}
 """
+    return body, tag
+
+
+def _render_supported_models(db_path: Path, repo: str) -> str:
+    """Render the supported-models vendor grid only."""
+    payload = _latest_release_payload(db_path)
+    by_focus: dict[str, list[tuple[str, str]]] = {}
+    if payload:
+        for s in payload["sections"]:
+            if not looks_like_model_section(s["section"]):
+                continue
+            cls = classify_model(s["item"])
+            if not cls:
+                continue
+            vendor, org = cls
+            if is_focus_vendor(vendor):
+                by_focus.setdefault(vendor, []).append((s["item"], org))
+    return _render_focus_grid(by_focus, db_path, repo)
 
 
 def _render_open_issues(db_path: Path) -> str:
@@ -643,12 +611,7 @@ def _render_open_issues(db_path: Path) -> str:
             f'</li>'
         )
 
-    return (
-        '<section class="open-issues">'
-        '<h2>Open issues worth watching</h2>'
-        f'<ul class="issue-list">{"".join(items)}</ul>'
-        '</section>'
-    )
+    return f'<ul class="issue-list">{"".join(items)}</ul>'
 
 
 def _render_digest_pointer(docs_dir: Path) -> str:
@@ -781,12 +744,7 @@ def _render_forks(db_path: Path) -> str:
             f"{commits_html}"
             "</li>"
         )
-    return (
-        '<section class="forks">'
-        '<h2>Active forks</h2>'
-        f'<ul class="fork-list">{"".join(items)}</ul>'
-        '</section>'
-    )
+    return f'<ul class="fork-list">{"".join(items)}</ul>'
 
 
 def _render_topics(db_path: Path) -> str:
@@ -822,12 +780,7 @@ def _render_topics(db_path: Path) -> str:
             )
             + "</div>"
         )
-    return (
-        '<section class="topics">'
-        '<h2>Discovered topics</h2>'
-        f'{pr_html}{issue_html}'
-        '</section>'
-    )
+    return f'{pr_html}{issue_html}'
 
 
 def _render_issue_hotspots(db_path: Path) -> str:
@@ -845,12 +798,7 @@ def _render_issue_hotspots(db_path: Path) -> str:
             f"linked</span>"
             f"</li>"
         )
-    return (
-        '<section class="hotspots">'
-        '<h2>Issue hotspots</h2>'
-        f'<ul class="hotspot-list">{"".join(items)}</ul>'
-        '</section>'
-    )
+    return f'<ul class="hotspot-list">{"".join(items)}</ul>'
 
 
 def _render_release_drift(db_path: Path) -> str:
@@ -877,13 +825,11 @@ def _render_release_drift(db_path: Path) -> str:
         for r in rows
     )
     return (
-        '<section class="drift">'
-        f'<h2>Where the code moved: <code>{escape(from_tag)}</code> &rarr; '
-        f'<code>{escape(to_tag)}</code></h2>'
+        f'<p class="drift-pair"><code>{escape(from_tag)}</code> &rarr; '
+        f'<code>{escape(to_tag)}</code></p>'
         "<table class='drift-table'>"
         "<thead><tr><th>Directory</th><th>Files</th><th>Lines changed</th></tr></thead>"
         f"<tbody>{body}</tbody></table>"
-        '</section>'
     )
 
 
@@ -914,13 +860,10 @@ def _render_benchmarks(db_path: Path) -> str:
         for r in items
     )
     return (
-        '<section class="benchmarks">'
-        '<h2>Performance signals</h2>'
         "<table class='bench-table'>"
         "<thead><tr><th>Workload</th><th>Hardware</th><th>Metric</th>"
         "<th class='num'>Value</th><th>Observed</th></tr></thead>"
         f"<tbody>{body}</tbody></table>"
-        '</section>'
     )
 
 
@@ -982,12 +925,7 @@ def _render_timeseries(db_path: Path, prs: pd.DataFrame) -> str:
 
     if not charts:
         return ""
-    return (
-        '<section class="trends">'
-        '<h2>Growth over time</h2>'
-        + "\n".join(f'<div class="chart">{c}</div>' for c in charts) +
-        '</section>'
-    )
+    return "\n".join(f'<div class="chart">{c}</div>' for c in charts)
 
 
 def _render_topic_momentum(db_path: Path) -> str:
@@ -1015,12 +953,10 @@ def _render_topic_momentum(db_path: Path) -> str:
         return f'<div class="momentum-col"><h3>{title}</h3><ul>{lis}</ul></div>'
 
     return (
-        '<section class="momentum">'
-        '<h2>Topic momentum (30d vs prior 30d)</h2>'
         '<div class="momentum-grid">'
         + _block("Heating up", growing, "up")
         + _block("Cooling down", shrinking, "down")
-        + '</div></section>'
+        + '</div>'
     )
 
 
@@ -1045,14 +981,10 @@ def _render_perf_claims(db_path: Path) -> str:
             f'</li>'
         )
     return (
-        '<section class="perf-claims">'
-        '<h2>Perf claims by PR authors</h2>'
         f'<ul class="claims-list">{"".join(items)}</ul>'
-        '<p class="footnote">Self-reported deltas extracted from PR titles and '
-        'bodies. Verify by clicking through. Canonical perf data lives at '
-        '<a href="https://perf.vllm.ai/" target="_blank" rel="noopener">perf.vllm.ai</a>.'
-        '</p>'
-        '</section>'
+        '<p class="footnote">Self-reported deltas. Click through to verify. '
+        'Canonical perf data: <a href="https://perf.vllm.ai/" target="_blank" '
+        'rel="noopener">perf.vllm.ai</a>.</p>'
     )
 
 
@@ -1062,7 +994,7 @@ def _render_social(db_path: Path) -> str:
     hn = recent_hn_mentions(db_path, limit=8)
     if not hot and not hn:
         return ""
-    parts = ['<section class="social"><h2>Community temperature</h2>']
+    parts = []
     if hot:
         items = []
         for r in hot:
@@ -1102,8 +1034,516 @@ def _render_social(db_path: Path) -> str:
             "<h3>Recent HN mentions</h3>"
             f"<ul class='hn-list'>{''.join(items)}</ul>"
         )
-    parts.append('</section>')
+
     return "\n".join(parts)
+
+
+def _compute_section_signals(db_path: Path, prs: pd.DataFrame) -> dict:
+    """Pre-compute the small bits of data we use to decide section badges
+    and one-line summaries. Keeping it in one place avoids re-querying."""
+    with connect(db_path) as conn:
+        # Activity heat: PRs merged in last 7d
+        recent_pr_n = conn.execute(
+            "SELECT COUNT(*) AS n FROM pull_requests "
+            "WHERE merged_at IS NOT NULL AND merged_at >= datetime('now','-7 days')"
+        ).fetchone()["n"]
+        # Open watch issues
+        watch_n = conn.execute(
+            "SELECT COUNT(*) AS n FROM issues WHERE state='OPEN' AND ("
+            "  labels LIKE '%release-blocker%' OR "
+            "  labels LIKE '%regression%' OR "
+            "  labels LIKE '%perf-regression%')"
+        ).fetchone()["n"]
+        # Most-reacted PR last 7d
+        top_react = conn.execute(
+            "SELECT MAX(COALESCE(reactions_total,0)) AS n FROM pull_requests "
+            "WHERE merged_at >= datetime('now','-7 days')"
+        ).fetchone()["n"] or 0
+        # Latest release published date
+        latest = conn.execute(
+            "SELECT tag, published_at FROM releases "
+            "WHERE is_prerelease=0 ORDER BY published_at DESC LIMIT 1"
+        ).fetchone()
+        # Perf claim count last 30d
+        perf_claim_n = conn.execute(
+            "SELECT COUNT(*) AS n FROM perf_claims pc "
+            "JOIN pull_requests p ON p.number = pc.pr_number "
+            "WHERE p.merged_at >= datetime('now','-30 days')"
+        ).fetchone()["n"]
+        # Cluster momentum top growth
+        from .analysis.topics import cluster_momentum as _cm
+        momentum = _cm(db_path, "pr", window_days=30)
+        top_ratio = momentum[0]["ratio"] if momentum else 1.0
+        top_growing = momentum[0]["label"] if momentum and momentum[0]["ratio"] > 1.5 else None
+        # Latest fork ahead count
+        fork_ahead_max = conn.execute(
+            "SELECT MAX(ahead_by) AS n FROM forks"
+        ).fetchone()["n"] or 0
+        # Recent HN
+        hn_n = conn.execute(
+            "SELECT COUNT(*) AS n FROM hn_mentions "
+            "WHERE created_at >= datetime('now','-30 days')"
+        ).fetchone()["n"]
+
+    is_new_release = False
+    rel_age_days: int | None = None
+    if latest and latest["published_at"]:
+        try:
+            d = datetime.fromisoformat(latest["published_at"].replace("Z", "+00:00"))
+            rel_age_days = (datetime.now(timezone.utc) - d).days
+            is_new_release = rel_age_days <= 14
+        except Exception:  # noqa: BLE001
+            pass
+
+    return {
+        "recent_pr_n": recent_pr_n,
+        "watch_n": watch_n,
+        "top_react": top_react,
+        "is_new_release": is_new_release,
+        "rel_age_days": rel_age_days,
+        "perf_claim_n": perf_claim_n,
+        "top_ratio": top_ratio,
+        "top_growing": top_growing,
+        "fork_ahead_max": fork_ahead_max,
+        "hn_n": hn_n,
+    }
+
+
+def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
+                   rel: pd.DataFrame, cm: pd.DataFrame,
+                   now: datetime, repo: str, signals: dict
+                   ) -> list[tuple[Section, str]]:
+    """Produce the ordered list of (Section, body_html) pairs. Each renderer
+    here returns *body only* — the Section shell adds the title, badge and
+    collapse machinery."""
+    sections: list[tuple[Section, str]] = []
+
+    # Latest release verdict
+    rel_body, rel_tag = _render_latest_release(db_path, repo)
+    if rel_body:
+        rel_sec = Section(
+            slug="latest-release",
+            title="Latest release" + (f" — {rel_tag}" if rel_tag else ""),
+            icon="🚀",
+            badge_kind="new" if signals["is_new_release"] else "neutral",
+            badge_label="just shipped" if signals["is_new_release"]
+                        else (f'{signals["rel_age_days"]}d old'
+                              if signals["rel_age_days"] is not None else ""),
+            summary="LLM-synthesized upgrade verdict for the current release.",
+            empty_state=empty_state(
+                "No release cached yet",
+                "Run <code>vllm-insights sync --releases</code> to populate."
+            ),
+        )
+        sections.append((rel_sec, rel_body))
+
+    # Supported models
+    models_body = _render_supported_models(db_path, repo)
+    sections.append((Section(
+        slug="supported-models",
+        title="Supported models",
+        icon="🧬",
+        badge_kind="derived",
+        badge_label="from registry.py",
+        summary="Live mirror of upstream registry.py grouped into 7 focus vendors.",
+        empty_state=empty_state(
+            "Registry not yet synced",
+            "<code>vllm-insights sync --registry</code> populates this on the next run."
+        ),
+    ), models_body))
+
+    # Capability matrix
+    cap_body = render_capability_matrix(db_path, repo)
+    sections.append((Section(
+        slug="capability",
+        title="What vLLM ships",
+        icon="🛠️",
+        badge_kind="derived",
+        badge_label="from source tree",
+        summary="Every quant / attention / parallel / platform file present in upstream right now.",
+        empty_state=empty_state(
+            "Source inventory not yet built",
+            "Run <code>vllm-insights sync --source-scan</code> to enumerate."
+        ),
+    ), cap_body))
+
+    # Perf claims
+    pc_body = _render_perf_claims(db_path)
+    pc_kind = "hot" if signals["perf_claim_n"] >= 5 else "neutral"
+    sections.append((Section(
+        slug="perf-claims",
+        title="Perf claims by PR authors",
+        icon="⚡",
+        badge_kind=pc_kind,
+        badge_label=f'{signals["perf_claim_n"]} in 30d' if signals["perf_claim_n"] else "no recent claims",
+        summary='Author-reported deltas extracted from PR titles ("1.5x H100").',
+        empty_state=empty_state(
+            "No perf claims parsed yet",
+            "<code>vllm-insights analyze --perf-claims</code> populates this from PR bodies."
+        ),
+    ), pc_body))
+
+    # Time series
+    ts_body = _render_timeseries(db_path, prs)
+    sections.append((Section(
+        slug="trends",
+        title="Growth over time",
+        icon="📈",
+        badge_kind="derived",
+        badge_label="per release",
+        summary="Architectures, quant methods, attention backends and MoE PR share across releases.",
+        empty_state=empty_state(
+            "History not yet built",
+            "Run <code>vllm-insights sync --history</code> to backfill per-release snapshots."
+        ),
+    ), ts_body))
+
+    # Topics
+    topics_body = _render_topics(db_path)
+    sections.append((Section(
+        slug="topics",
+        title="Discovered topics",
+        icon="🧠",
+        badge_kind="derived",
+        badge_label="K-means + LLM labels",
+        summary="Auto-clustered PR + issue themes — labels are LLM-generated, not curated.",
+        empty_state=empty_state(
+            "Embeddings still backfilling",
+            progress_bar("PR embeddings", *_backfill_progress(db_path)) +
+            "<p class='footnote' style='margin-top:.6rem'>Topic discovery runs once "
+            "≥20 PRs are embedded. At GH Models free-tier rate limits "
+            "(~150 requests/day) the full backfill takes a few days; this section "
+            "fills in once it completes.</p>"
+        ),
+    ), topics_body))
+
+    # Topic momentum
+    mo_body = _render_topic_momentum(db_path)
+    mo_kind = "hot" if signals["top_ratio"] >= 2.0 else "neutral"
+    sections.append((Section(
+        slug="momentum",
+        title="Topic momentum",
+        icon="🌡️",
+        badge_kind=mo_kind,
+        badge_label=(f'{signals["top_growing"]} +{signals["top_ratio"]:.1f}×'
+                    if signals["top_growing"]
+                    else "stable"),
+        summary="30-day vs prior 30-day PR counts per cluster — what's heating up.",
+        empty_state=empty_state(
+            "Waiting for clustering",
+            "Same backfill as Discovered topics above; both light up together."
+        ),
+    ), mo_body))
+
+    # Drift
+    drift_body = _render_release_drift(db_path)
+    sections.append((Section(
+        slug="drift",
+        title="Where the code moved",
+        icon="🗺️",
+        badge_kind="derived",
+        badge_label="release diff",
+        summary="Top directories changed between adjacent releases by line count.",
+        empty_state=empty_state(
+            "No release diffs yet",
+            "<code>vllm-insights analyze --release-diff</code> populates this on the next run."
+        ),
+    ), drift_body))
+
+    # Social
+    soc_body = _render_social(db_path)
+    soc_kind = "hot" if signals["top_react"] >= 10 or signals["hn_n"] >= 3 else "neutral"
+    sections.append((Section(
+        slug="social",
+        title="Community temperature",
+        icon="🔥",
+        badge_kind=soc_kind,
+        badge_label=(f'PR ★{signals["top_react"]} / HN {signals["hn_n"]}'
+                    if signals["top_react"] or signals["hn_n"] else "quiet"),
+        summary="Most-reacted PRs + recent Hacker News mentions of vLLM.",
+        empty_state=empty_state(
+            "No reactions or HN mentions captured yet",
+            "Reactions come from <code>sync --reactions</code>, HN from <code>sync --hn</code>."
+        ),
+    ), soc_body))
+
+    # Hotspots
+    hot_body = _render_issue_hotspots(db_path)
+    hot_kind = "watch" if signals["watch_n"] >= 1 else "neutral"
+    sections.append((Section(
+        slug="hotspots",
+        title="Issue hotspots",
+        icon="🎯",
+        badge_kind=hot_kind,
+        badge_label=f'{signals["watch_n"]} watch' if signals["watch_n"] else "clean",
+        summary="Open issues with the most distinct PRs targeting them.",
+        empty_state=empty_state(
+            "No PR↔issue links parsed yet",
+            "Comes from <code>analyze --pr-issue-links</code> over PR bodies."
+        ),
+    ), hot_body))
+
+    # Forks
+    forks_body = _render_forks(db_path)
+    fk_kind = "hot" if signals["fork_ahead_max"] >= 50 else "neutral"
+    sections.append((Section(
+        slug="forks",
+        title="Active forks",
+        icon="🌿",
+        badge_kind=fk_kind,
+        badge_label=(f'top fork +{signals["fork_ahead_max"]} commits'
+                    if signals["fork_ahead_max"] else "no diverged forks"),
+        summary="Forks carrying commits not yet merged upstream.",
+        empty_state=empty_state(
+            "No forks scanned yet",
+            "<code>vllm-insights sync --forks</code> populates this on the next run."
+        ),
+        default_open=False,
+    ), forks_body))
+
+    # Open issues
+    issues_body = _render_open_issues(db_path)
+    issues_kind = "watch" if signals["watch_n"] >= 1 else "neutral"
+    sections.append((Section(
+        slug="open-issues",
+        title="Open issues worth watching",
+        icon="📋",
+        badge_kind=issues_kind,
+        badge_label=f'{signals["watch_n"]} open' if signals["watch_n"] else "—",
+        summary="Top open issues across performance / regression / RFC / hardware labels.",
+        empty_state=empty_state(
+            "Issue sync hasn't run yet",
+            "<code>vllm-insights sync --issues</code> pulls only labelled issues."
+        ),
+        default_open=False,
+    ), issues_body))
+
+    # Activity stats (vanity metrics) — kept but always closed
+    act_body = _render_activity(rel, prs, cm, now)
+    sections.append((Section(
+        slug="activity",
+        title="Repo activity stats",
+        icon="📊",
+        badge_kind="neutral",
+        badge_label="vanity metrics",
+        summary="Release cadence, PR throughput, top committers — generic GitHub-stat charts.",
+        default_open=False,
+    ), act_body))
+
+    return sections
+
+
+def _render_topbar(repo_url: str) -> str:
+    """Sticky top header with brand, nav, search box and theme toggle."""
+    return f"""
+<div class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="./" aria-label="vLLM Insights home">
+      <span class="brand-mark">▮</span> vLLM Insights
+    </a>
+    <button class="topnav-toggle" type="button" aria-label="Toggle navigation"
+            aria-expanded="false">☰</button>
+    <nav class="topnav" aria-label="Sections">
+      <a href="#latest-release">Release</a>
+      <a href="#capability">Capability</a>
+      <a href="#trends">Trends</a>
+      <a href="#topics">Topics</a>
+      <a href="#social">Community</a>
+      <a href="features/">Features</a>
+      <a href="weekly/">Weekly</a>
+      <a href="about.html">About</a>
+    </nav>
+    <span class="topbar-spacer"></span>
+    <div class="search-wrap">
+      <input type="search" class="search-input" placeholder="Search PRs, features, vendors…"
+             aria-label="Search" autocomplete="off">
+      <div class="search-results" role="listbox"></div>
+    </div>
+    <a class="tool-btn" href="feed.xml" title="Atom feed" aria-label="Atom feed">RSS</a>
+    <a class="tool-btn" href="{repo_url}" title="Upstream repo on GitHub"
+       aria-label="vLLM on GitHub">GH</a>
+    <button class="tool-btn" id="theme-toggle" type="button" aria-label="Toggle theme">◐</button>
+  </div>
+</div>
+"""
+
+
+def _render_toc(sections: list[tuple[Section, str]]) -> str:
+    """Floating left-side ToC for desktop. Hidden on mobile."""
+    items = "".join(
+        f'<li><a href="#{escape(s.slug)}" data-slug="{escape(s.slug)}">'
+        f'{escape(s.title)}</a></li>'
+        for s, _ in sections
+    )
+    return f'<aside class="toc"><h3>On this page</h3><ul>{items}</ul></aside>'
+
+
+def _render_hero(db_path: Path, repo_url: str) -> str:
+    """Hero block — eyebrow + takeaway + status strip + subscribe row."""
+    eyebrow, body_html = build_hero_takeaway(db_path)
+    strip = build_status_strip(db_path)
+    return f"""
+<section class="hero" aria-labelledby="hero-title">
+  <p class="hero-eyebrow">{eyebrow}</p>
+  <h1 class="hero-title" id="hero-title">A live view of what vLLM is shipping.</h1>
+  <div class="hero-body">{body_html}</div>
+  {strip}
+</section>
+"""
+
+
+def _site_js() -> str:
+    """Inline JS for: theme persistence, mobile-nav toggle, ToC active state,
+    section collapse persistence, search."""
+    return r"""
+(() => {
+  // ----- Theme toggle (persisted in localStorage) -----
+  const root = document.documentElement;
+  const stored = localStorage.getItem('vi-theme');
+  if (stored === 'dark' || stored === 'light') root.setAttribute('data-theme', stored);
+  const btn = document.getElementById('theme-toggle');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      const cur = root.getAttribute('data-theme') ||
+        (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      const next = cur === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      localStorage.setItem('vi-theme', next);
+    });
+  }
+
+  // ----- Mobile nav toggle -----
+  const navBtn = document.querySelector('.topnav-toggle');
+  const nav = document.querySelector('.topnav');
+  if (navBtn && nav) {
+    navBtn.addEventListener('click', () => {
+      const open = nav.classList.toggle('open');
+      navBtn.setAttribute('aria-expanded', String(open));
+    });
+  }
+
+  // ----- ToC active-section highlighting -----
+  const tocLinks = Array.from(document.querySelectorAll('.toc a[data-slug]'));
+  if ('IntersectionObserver' in window && tocLinks.length) {
+    const map = new Map();
+    tocLinks.forEach(a => map.set(a.dataset.slug, a));
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          tocLinks.forEach(a => a.classList.remove('active'));
+          const a = map.get(e.target.id);
+          if (a) a.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-30% 0px -55% 0px' });
+    document.querySelectorAll('.sec[id]').forEach(s => io.observe(s));
+  }
+
+  // ----- Section open/close persistence -----
+  document.querySelectorAll('.sec[id] .sec-d').forEach(d => {
+    const slug = d.closest('.sec').id;
+    const stored = localStorage.getItem('vi-sec-' + slug);
+    if (stored === '0') d.removeAttribute('open');
+    if (stored === '1') d.setAttribute('open', '');
+    d.addEventListener('toggle', () => {
+      localStorage.setItem('vi-sec-' + slug, d.open ? '1' : '0');
+    });
+  });
+
+  // ----- Client-side search -----
+  const input = document.querySelector('.search-input');
+  const out = document.querySelector('.search-results');
+  let idx = null, idxLoading = false;
+  async function loadIdx() {
+    if (idx || idxLoading) return idx;
+    idxLoading = true;
+    try {
+      const r = await fetch('search-index.json');
+      idx = await r.json();
+    } catch {
+      idx = { items: [] };
+    } finally { idxLoading = false; }
+    return idx;
+  }
+  function score(q, t) {
+    const tq = q.toLowerCase(), tt = (t || '').toLowerCase();
+    if (!tq) return 0;
+    if (tt.startsWith(tq)) return 3;
+    if (tt.includes(tq)) return 2;
+    return 0;
+  }
+  if (input) {
+    let debounceT = null;
+    input.addEventListener('input', () => {
+      clearTimeout(debounceT);
+      debounceT = setTimeout(async () => {
+        const q = input.value.trim();
+        if (!q) { out.classList.remove('open'); out.innerHTML = ''; return; }
+        await loadIdx();
+        const hits = (idx.items || [])
+          .map(it => ({ it, s: score(q, it.title) + score(q, it.kind) }))
+          .filter(x => x.s > 0)
+          .sort((a, b) => b.s - a.s)
+          .slice(0, 25);
+        if (!hits.length) {
+          out.innerHTML = '<div class="sr-empty">No matches.</div>';
+        } else {
+          out.innerHTML = hits.map(({ it }) =>
+            `<a href="${it.url}"><span class="sr-kind">${it.kind}</span>` +
+            `<span class="sr-title">${it.title.replace(/</g, '&lt;')}</span></a>`
+          ).join('');
+        }
+        out.classList.add('open');
+      }, 120);
+    });
+    input.addEventListener('blur', () => setTimeout(() => out.classList.remove('open'), 200));
+    input.addEventListener('focus', () => { if (out.innerHTML) out.classList.add('open'); });
+  }
+})();
+"""
+
+
+def _build_search_index(db_path: Path, docs_dir: Path) -> int:
+    """Write docs/search-index.json — what the in-page search uses."""
+    items: list[dict] = []
+    with connect(db_path) as conn:
+        for r in conn.execute(
+            "SELECT tag, name, url FROM releases ORDER BY published_at DESC LIMIT 40"
+        ).fetchall():
+            items.append({"kind": "release",
+                          "title": f"{r['tag']}{' — ' + (r['name'] or '') if r['name'] else ''}",
+                          "url": r['url'] or '#latest-release'})
+        for r in conn.execute(
+            "SELECT number, title, url FROM pull_requests "
+            "WHERE merged_at IS NOT NULL ORDER BY merged_at DESC LIMIT 500"
+        ).fetchall():
+            items.append({"kind": "PR",
+                          "title": f"#{r['number']} {r['title']}",
+                          "url": r['url'] or '#'})
+        for r in conn.execute(
+            "SELECT number, title, url FROM issues "
+            "WHERE state='OPEN' ORDER BY updated_at DESC LIMIT 200"
+        ).fetchall():
+            items.append({"kind": "issue",
+                          "title": f"#{r['number']} {r['title']}",
+                          "url": r['url'] or '#'})
+        for r in conn.execute(
+            "SELECT kind, name FROM source_inventory ORDER BY kind, name"
+        ).fetchall():
+            slug = f"{r['kind']}-{r['name']}".replace('_', '-').lower()
+            items.append({"kind": r['kind'],
+                          "title": r['name'],
+                          "url": f"features/{slug}.html"})
+        for r in conn.execute(
+            "SELECT arch_class, category FROM model_registry WHERE removed_at IS NULL"
+        ).fetchall():
+            items.append({"kind": "arch",
+                          "title": f"{r['arch_class']} ({r['category']})",
+                          "url": "#supported-models"})
+    payload = {"items": items, "generated_at": datetime.now(timezone.utc).isoformat()}
+    out = docs_dir / "search-index.json"
+    out.write_text(json.dumps(payload), encoding="utf-8")
+    return len(items)
 
 
 def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
@@ -1112,61 +1552,75 @@ def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
     prs = prs_df(db_path)
     cm = commits_df(db_path)
     now = datetime.now(timezone.utc)
-
-    latest_html = _render_latest_release(db_path, repo)
-    capability_html = render_capability_matrix(db_path, repo)
-    perf_claims_html = _render_perf_claims(db_path)
-    timeseries_html = _render_timeseries(db_path, prs)
-    topics_html = _render_topics(db_path)
-    momentum_html = _render_topic_momentum(db_path)
-    drift_html = _render_release_drift(db_path)
-    social_html = _render_social(db_path)
-    hotspots_html = _render_issue_hotspots(db_path)
-    forks_html = _render_forks(db_path)
-    issues_html = _render_open_issues(db_path)
-    digest_html = _render_digest_pointer(docs_dir)
-    activity_html = _render_activity(rel, prs, cm, now)
-
     repo_url = f"https://github.com/{repo}"
+
+    signals = _compute_section_signals(db_path, prs)
+    sections = _make_sections(db_path, docs_dir, prs, rel, cm, now, repo, signals)
+
+    # Filter sections to those with body or with an empty-state design
+    rendered: list[str] = []
+    visible_sections: list[tuple[Section, str]] = []
+    for sec, body in sections:
+        html = section_shell(sec, body)
+        if not html:
+            continue
+        rendered.append(html)
+        visible_sections.append((sec, body))
+
+    digest_html = _render_digest_pointer(docs_dir)
+
+    # Build the search index alongside the page
+    _build_search_index(db_path, docs_dir)
+
+    topbar = _render_topbar(repo_url)
+    hero = _render_hero(db_path, repo_url)
+    toc = _render_toc(visible_sections)
+
+    # OpenGraph + Twitter card values
+    og_title = "vLLM Insights"
+    og_desc = ("Live derived view of vLLM: supported models, capability matrix, "
+               "release verdicts, perf claims, topic momentum, fork tracking.")
+    og_url = "https://bowensu123.github.io/vllm-insights/"
+
     body = f"""<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>vLLM Insights — capability &amp; release intelligence</title>
-<meta name="description" content="Live derived view of vLLM supported models, quantization methods, attention backends, parallelism, spec-decode and hardware platforms. Sourced from upstream registry.py and a recursive git-tree scan — no curation.">
-<link rel="alternate" type="application/atom+xml" title="vLLM Insights — releases &amp; weekly digests" href="feed.xml">
+<title>vLLM Insights — capability matrix, release verdicts, topic trends</title>
+<meta name="description" content="{escape(og_desc)}">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{escape(og_title)}">
+<meta property="og:description" content="{escape(og_desc)}">
+<meta property="og:url" content="{escape(og_url)}">
+<meta property="og:site_name" content="vLLM Insights">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{escape(og_title)}">
+<meta name="twitter:description" content="{escape(og_desc)}">
+<link rel="alternate" type="application/atom+xml"
+      title="vLLM Insights — releases & weekly digests" href="feed.xml">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%232f6feb'/><text x='32' y='44' text-anchor='middle' font-family='-apple-system,sans-serif' font-size='38' font-weight='700' fill='white'>v</text></svg>">
 <style>{PAGE_CSS}</style>
 </head><body>
-<header>
-  <h1>vLLM Insights</h1>
-  <p class="lede">
-    <a href="{repo_url}">{escape(repo)}</a> &middot; supported models, quantization,
-    attention backends, parallelism, spec-decode, LoRA, hardware platforms.
-  </p>
-  <p class="audience">
-    Updated {now:%Y-%m-%d %H:%M UTC} · <a href="feed.xml">Atom feed</a>
-  </p>
-  <nav style="margin-top:.6rem">
-    <a href="features/">Feature index</a>
-    <a href="weekly/">Weekly digest</a>
-    <a href="feed.xml">Atom</a>
-    <a href="{repo_url}">Upstream</a>
-  </nav>
-</header>
-{latest_html}
-{capability_html}
-{perf_claims_html}
-{timeseries_html}
-{topics_html}
-{momentum_html}
-{drift_html}
-{social_html}
-{hotspots_html}
-{forks_html}
-{issues_html}
-{digest_html}
-{activity_html}
-<footer>vllm-insights &middot; refreshed hourly from
-<a href="{repo_url}">{escape(repo)}</a>.</footer>
+{topbar}
+<main class="page">
+  {hero}
+  <div class="layout">
+    {toc}
+    <div class="sections">
+      {"".join(rendered)}
+      {digest_html}
+    </div>
+  </div>
+  <footer class="foot">
+    <div>vllm-insights &middot; refreshed hourly &middot;
+      tracking <a href="{repo_url}">{escape(repo)}</a></div>
+    <div>
+      <a href="about.html">About &amp; methodology</a> &middot;
+      <a href="feed.xml">Atom</a> &middot;
+      <a href="features/">Feature index</a>
+    </div>
+  </footer>
+</main>
+<script>{_site_js()}</script>
 </body></html>"""
     out = docs_dir / "index.html"
     out.write_text(body, encoding="utf-8")

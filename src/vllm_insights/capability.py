@@ -53,13 +53,7 @@ def render_capability_matrix(db_path: Path, repo: str = "vllm-project/vllm") -> 
     """
     activity = pr_activity_for_inventory(db_path, days=90)
 
-    parts: list[str] = [
-        '<section class="capability">',
-        '<h2>What vLLM ships, today</h2>',
-        '<p class="cap-intro">'
-        'Files present in upstream <code>vllm/</code>, with 90-day PR activity.'
-        '</p>',
-    ]
+    parts: list[str] = []
 
     have_any = False
     for kind, group_label in kinds_in_order():
@@ -102,11 +96,9 @@ def render_capability_matrix(db_path: Path, repo: str = "vllm-project/vllm") -> 
 
     if not have_any:
         parts.append(
-            '<p style="opacity:.6"><em>No inventory yet. Run '
+            '<p style="color:var(--fg-3)"><em>No inventory yet. Run '
             '<code>vllm-insights sync --source-scan</code> first.</em></p>'
         )
-
-    parts.append("</section>")
     return "\n".join(parts)
 
 
