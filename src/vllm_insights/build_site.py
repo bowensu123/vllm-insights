@@ -65,7 +65,7 @@ PAGE_CSS = DESIGN_TOKENS_CSS + COMPONENTS_CSS + """
 .card .l { font-size: .8rem; color: var(--fg-3); }
 .chart { margin: 1rem 0; }
 
-/* Release-verdict summary box (the LLM output for the latest release) */
+/* Release-verdict summary box */
 .release-summary {
   border-left: 3px solid var(--accent);
   background: var(--accent-soft);
@@ -519,15 +519,10 @@ def _render_latest_release(db_path: Path, repo: str) -> tuple[str, str]:
     if payload["summary_row"]:
         rendered = md.markdown(payload["summary_row"]["summary"],
                               extensions=["tables", "fenced_code"])
-        meta = (
-            f"<span class='meta'>LLM summary &middot; "
-            f"{escape(payload['summary_row']['backend'] or '?')} / "
-            f"{escape(payload['summary_row']['model'] or '?')}</span>"
-        )
         summary_html = (
             "<details open class='release-summary'>"
             "<summary>Upgrade verdict</summary>"
-            f"{rendered}{meta}"
+            f"{rendered}"
             "</details>"
         )
 
@@ -1129,7 +1124,7 @@ def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
             badge_label="just shipped" if signals["is_new_release"]
                         else (f'{signals["rel_age_days"]}d old'
                               if signals["rel_age_days"] is not None else ""),
-            summary="LLM-synthesized upgrade verdict for the current release.",
+            summary="Upgrade verdict for the current release.",
             empty_state=empty_state(
                 "No release cached yet",
                 "Run <code>vllm-insights sync --releases</code> to populate."
@@ -1205,15 +1200,13 @@ def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
         title="Discovered topics",
         icon="🧠",
         badge_kind="derived",
-        badge_label="K-means + LLM labels",
-        summary="Auto-clustered PR + issue themes — labels are LLM-generated, not curated.",
+        badge_label="auto-discovered",
+        summary="Auto-clustered PR and issue themes.",
         empty_state=empty_state(
-            "Embeddings still backfilling",
-            progress_bar("PR embeddings", *_backfill_progress(db_path)) +
-            "<p class='footnote' style='margin-top:.6rem'>Topic discovery runs once "
-            "≥20 PRs are embedded. At GH Models free-tier rate limits "
-            "(~150 requests/day) the full backfill takes a few days; this section "
-            "fills in once it completes.</p>"
+            "Topics still building",
+            progress_bar("PRs indexed", *_backfill_progress(db_path)) +
+            "<p class='footnote' style='margin-top:.6rem'>Backfill takes a few days "
+            "to complete. This section fills in once enough PRs are indexed.</p>"
         ),
     ), topics_body))
 

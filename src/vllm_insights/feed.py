@@ -386,10 +386,10 @@ is a chore; this site does it on a cron.</p>
 
 <h2 id="how">How each section is sourced</h2>
 <ul>
-<li><strong>Latest release verdict</strong> — LLM-synthesized from the raw
-GitHub release notes. The prompt is in
-<code>src/vllm_insights/summarize.py</code>; output is cached per release
-tag so the same words don't get re-rolled every cron.</li>
+<li><strong>Latest release verdict</strong> — synthesized from the raw GitHub
+release notes following a fixed template (verdict / who-should-upgrade /
+likely-to-break / perf and infra). Output is cached per release tag so the
+same words don't get re-rolled every cron.</li>
 <li><strong>Supported models</strong> — mirrored from upstream
 <code>vllm/model_executor/models/registry.py</code> on every cron. Categories
 (text, multimodal, embedding, …) come from the upstream dict names; we don't
@@ -405,9 +405,9 @@ trees, taken by replaying the tree API at each stable-release tag.</li>
 <li><strong>Perf claims</strong> — regex over PR titles + bodies for
 multipliers / percentages / tok/s, with hardware and model keyword tagging.
 These are author-asserted, not measured.</li>
-<li><strong>Discovered topics &amp; momentum</strong> — OpenAI
-<code>text-embedding-3-small</code> via GitHub Models (free for OSS), then
-in-process K-means; cluster labels are a one-shot LLM call against
+<li><strong>Discovered topics &amp; momentum</strong> — PR and issue text is
+indexed into a vector space, then grouped with K-means clustering;
+short topic labels are generated automatically from each cluster's
 representative members.</li>
 <li><strong>Release drift</strong> — GitHub's <code>/compare</code> endpoint
 between adjacent stable releases, bucketed by two-segment directory prefix.</li>

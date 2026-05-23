@@ -182,6 +182,6 @@ def build_status_strip(db_path: Path) -> str:
         ("PRs cached", f"{n_prs:,}", None),
         ("Labelled issues", f"{n_issues:,}", None),
         ("Live arches", f"{n_arches:,}", None),
-        ("Embeddings", emb_hint, "topic clustering"),
+        ("Indexed for topics", emb_hint, "of total PRs"),
     ]
     return status_strip(rows)
