@@ -8,8 +8,9 @@ homepage to render a vLLM-compatibility view.
 
 Focus vendors (the "Supported models" section foregrounds these and only these):
   - Alibaba (Qwen), DeepSeek, MiniMax, Zhipu (GLM)
-  - Meta (Llama), Google (Gemma), Microsoft (Phi)   ← US top-3 open-source
+  - Meta (Llama), Google (Gemma)
 
+Microsoft (Phi) is intentionally excluded from the focus list.
 Everything else is still classified, but collapsed into a single fallback group.
 """
 import re
@@ -80,9 +81,7 @@ def looks_like_model_section(section_name: str) -> bool:
 # -----------------------------------------------------------------------------
 # Focus vendors and their vLLM tech profile
 # -----------------------------------------------------------------------------
-# Ordered list of the vendors we foreground on the homepage. The four leading
-# entries are the Chinese open-weight labs the project is tracking closely; the
-# three trailing entries are the US top-3 open-source families. Edit here to
+# Ordered list of the vendors we foreground on the homepage. Edit here to
 # change which vendors get the rich tech card treatment.
 FOCUS_VENDORS: list[str] = [
     "Alibaba (Qwen)",
@@ -91,16 +90,12 @@ FOCUS_VENDORS: list[str] = [
     "Zhipu (GLM)",
     "Meta",
     "Google",
-    "Microsoft",
 ]
 
 
-# Per-vendor metadata. We used to keep curated taglines, feature lists and
-# series here — that was opinion masquerading as fact. The only field we
-# still allow is `hf_org`, because the HF org page is the canonical home for
-# the vendor's weights and there's nothing to make up. Everything else (arch
-# count, modalities, recent activity) is now derived in build_site.py from
-# the live registry + PR cache.
+# Per-vendor metadata. The only field kept is `hf_org` — the canonical HF
+# org page for the vendor's weights. Everything else (arch count, modalities,
+# recent activity) is derived in build_site.py from the live registry + PR cache.
 VENDOR_META: dict[str, dict] = {
     "Alibaba (Qwen)":   {"hf_org": "Qwen"},
     "DeepSeek":         {"hf_org": "deepseek-ai"},
@@ -108,7 +103,6 @@ VENDOR_META: dict[str, dict] = {
     "Zhipu (GLM)":      {"hf_org": "zai-org"},
     "Meta":             {"hf_org": "meta-llama"},
     "Google":           {"hf_org": "google"},
-    "Microsoft":        {"hf_org": "microsoft"},
 }
 
 
