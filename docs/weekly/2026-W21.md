@@ -9,6 +9,7 @@ For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/St
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#39912](https://github.com/vllm-project/vllm/pull/39912) [Kernel] Batch invariant NVFP4 linear using cutlass — @jzakrzew → `nan`
 - [#42143](https://github.com/vllm-project/vllm/pull/42143) fix(eagle3): read norm_before_fc from eagle_config for NVIDIA checkpoint — @FERRARIZHENG → `nan`
 - [#43433](https://github.com/vllm-project/vllm/pull/43433) Keep scheduler alive for delayed KV connector frees — @lucifer1004 → `nan`
 - [#42546](https://github.com/vllm-project/vllm/pull/42546) [ModelOpt] Support Qwen3.5/3.6 VLM quantized prefix mapping — @meenchen → `nan`
@@ -68,7 +69,6 @@ For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/St
 - [#42855](https://github.com/vllm-project/vllm/pull/42855) [Bugfix] Fix DSV4 Base model swiglu limit issue in FP8 path  — @zx3xyy → `nan`
 - [#43378](https://github.com/vllm-project/vllm/pull/43378) [CI] Fix dockerfile dependency graph failure for pre-commit — @Isotr0py → `nan`
 - [#43283](https://github.com/vllm-project/vllm/pull/43283) [Rust Frontend] Move code from `vllm-frontend-rs` — @BugenZhao → `nan`
-- [#41873](https://github.com/vllm-project/vllm/pull/41873) [Bugfix] Zero stale is_prefilling in padded CUDA graph rows for Mamba — @liulanze → `nan`
 - _…and 160 more_
 
 </details>
