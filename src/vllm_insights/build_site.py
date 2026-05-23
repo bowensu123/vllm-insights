@@ -30,7 +30,7 @@ from .analyzer.queries import (
 )
 from .capability import CAPABILITY_CSS, render_capability_matrix
 from .db import connect
-from .hero import build_hero_takeaway, build_status_strip, _backfill_progress
+from .hero import build_upgrade_hero, build_status_strip, _backfill_progress
 from .models import (
     FOCUS_VENDORS,
     classify as classify_model,
@@ -51,7 +51,6 @@ from .ui import (
     empty_state,
     progress_bar,
     section_shell,
-    subscribe_form,
 )
 
 
@@ -1111,9 +1110,15 @@ def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
     collapse machinery."""
     sections: list[tuple[Section, str]] = []
 
-    # Latest release verdict
+    # Latest release — full notes + verdict details.
+    # Collapsed by default when the verdict is shown in the hero (< 45 days old)
+    # so users aren't confronted with the same content twice.
     rel_body, rel_tag = _render_latest_release(db_path, repo)
     if rel_body:
+        hero_shows_verdict = (
+            signals["is_new_release"] or
+            (signals["rel_age_days"] is not None and signals["rel_age_days"] < 45)
+        )
         rel_sec = Section(
             slug="latest-release",
             title="Latest release" + (f" — {rel_tag}" if rel_tag else ""),
@@ -1122,7 +1127,8 @@ def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
             badge_label="just shipped" if signals["is_new_release"]
                         else (f'{signals["rel_age_days"]}d old'
                               if signals["rel_age_days"] is not None else ""),
-            summary="Upgrade verdict for the current release.",
+            summary="Full release notes, changelog, and upgrade verdict.",
+            default_open=not hero_shows_verdict,
             empty_state=empty_state(
                 "No release cached yet",
                 "No release data yet."
@@ -1370,19 +1376,12 @@ def _render_toc(sections: list[tuple[Section, str]]) -> str:
 
 
 def _render_hero(db_path: Path, repo_url: str) -> str:
-    """Hero block — eyebrow + takeaway + status strip + subscribe form."""
-    eyebrow, body_html = build_hero_takeaway(db_path)
-    strip = build_status_strip(db_path)
-    sub = subscribe_form(os.getenv("BUTTONDOWN_USERNAME", ""))
-    return f"""
-<section class="hero" aria-labelledby="hero-title">
-  <p class="hero-eyebrow">{eyebrow}</p>
-  <h1 class="hero-title" id="hero-title">A live view of what vLLM is shipping.</h1>
-  <div class="hero-body">{body_html}</div>
-  {strip}
-  {sub}
-</section>
-"""
+    """Hero block — upgrade verdict (when available) or daily takeaway."""
+    return build_upgrade_hero(
+        db_path,
+        repo_url,
+        newsletter_username=os.getenv("BUTTONDOWN_USERNAME", ""),
+    )
 
 
 def _site_js() -> str:

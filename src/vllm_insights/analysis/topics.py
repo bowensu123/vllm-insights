@@ -5,13 +5,19 @@ Pipeline
 1. Load L2-normalised embedding vectors from the `embeddings` table.
 2. Run K-means (cosine similarity via dot product on unit-norm vectors)
    using numpy for speed — ~100× faster than the old pure-Python loop.
-3. For each cluster, ask an LLM for a 2-4-word topic label.  If the new
+   We run `_RESTARTS` independent inits and keep the best by mean intra-
+   cluster distance so a bad seed can't permanently corrupt the clusters.
+3. K is chosen automatically via an elbow heuristic: we probe a short grid
+   of candidate K values and stop adding clusters once 80 % of the total
+   distance improvement has been captured.
+4. For each cluster, ask an LLM for a 2-4-word topic label.  If the new
    cluster overlaps ≥ 60 % (Jaccard) with a cluster from the previous run,
    reuse the old label so topics don't drift every cron.
-4. Persist assignments, labels, and centroids.  Storing centroids means
-   `cluster_momentum` can assign newly-merged PRs (not yet re-clustered) to
-   their nearest cluster on the fly, so momentum counts stay current without
-   waiting for the next full cluster run.
+5. Persist assignments, labels, centroids, and mean intra-cluster distance.
+   Storing centroids means `cluster_momentum` can assign newly-merged PRs
+   (not yet re-clustered) to their nearest cluster on the fly.
+6. `cluster_momentum` works for both PRs (filtered by merged_at) and issues
+   (filtered by created_at) so both kinds can show trend direction.
 """
 from __future__ import annotations
 
@@ -29,8 +35,13 @@ from ..summarize import _call_anthropic, _call_github_models
 from .embeddings import load_vectors
 
 
+_RESTARTS = 3   # independent K-means inits per chosen K; best by intra-dist wins
+_ELBOW_RESTARTS = 2   # cheaper restarts used during the K grid search
+_ELBOW_ITERS = 15     # fewer iterations for the K grid search
+
+
 # ---------------------------------------------------------------------------
-# K heuristic: roughly sqrt(N/2), clamped to [12, 40].
+# K heuristic (fallback when grid search can't run)
 # ---------------------------------------------------------------------------
 def _suggest_k(n: int) -> int:
     return max(12, min(40, int(math.sqrt(max(1, n) / 2))))
@@ -73,13 +84,13 @@ def kmeans_cosine(
     n, d = mat.shape
     k = min(k, n)
 
-    # k-means++ initialisation: each new centroid is drawn proportional to
+    # k-means++ initialisation: each new centroid drawn proportional to
     # (1 - max_cosine_sim_to_existing_centroids) so we spread out.
     first = int(rng.integers(n))
     centroid_idx = [first]
     for _ in range(1, k):
-        C = mat[centroid_idx]          # (m, d)
-        best_sim = (mat @ C.T).max(axis=1)  # (n,)
+        C = mat[centroid_idx]
+        best_sim = (mat @ C.T).max(axis=1)
         dists = np.clip(1.0 - best_sim, 0.0, None)
         total = float(dists.sum())
         if total <= 0.0:
@@ -87,7 +98,7 @@ def kmeans_cosine(
         else:
             centroid_idx.append(int(rng.choice(n, p=dists / total)))
 
-    centroids = mat[centroid_idx].copy()   # (k, d)
+    centroids = mat[centroid_idx].copy()
     assignments = np.zeros(n, dtype=np.int32)
 
     for _ in range(iters):
@@ -113,6 +124,100 @@ def kmeans_cosine(
 
 
 # ---------------------------------------------------------------------------
+# Quality metric: mean intra-cluster cosine distance
+# ---------------------------------------------------------------------------
+def _mean_intra_distance(
+    mat: np.ndarray,
+    assignments: list[int],
+    centroids: list[list[float]],
+) -> float:
+    """Mean cosine distance from each vector to its assigned centroid.
+
+    Lower = tighter clusters = better quality.  mat must already be
+    L2-normalised (as produced by kmeans_cosine).
+    """
+    ctrs = np.array(centroids, dtype=np.float32)
+    asgn = np.array(assignments, dtype=np.int32)
+    sims = (mat * ctrs[asgn]).sum(axis=1)
+    return float((1.0 - sims).mean())
+
+
+# ---------------------------------------------------------------------------
+# Multi-restart wrapper: run K times, keep best by intra-cluster distance
+# ---------------------------------------------------------------------------
+def _kmeans_best_of_n(
+    vectors: list[list[float]],
+    k: int,
+    *,
+    restarts: int = _RESTARTS,
+    iters: int = 20,
+) -> tuple[list[int], list[list[float]], float]:
+    """Run K-means `restarts` times; return (assignments, centroids, mean_dist)
+    for the run with the lowest mean intra-cluster cosine distance."""
+    mat = _norm_rows(np.array(vectors, dtype=np.float32))
+    best_asgn: list[int] | None = None
+    best_ctrs: list[list[float]] | None = None
+    best_dist = float("inf")
+    for i in range(restarts):
+        seed = i * 17 + 7    # spread seeds so runs are independent
+        asgn, ctrs = kmeans_cosine(vectors, k, iters=iters, seed=seed)
+        if not asgn:
+            continue
+        d = _mean_intra_distance(mat, asgn, ctrs)
+        if d < best_dist:
+            best_asgn, best_ctrs, best_dist = asgn, ctrs, d
+    return best_asgn or [], best_ctrs or [], best_dist
+
+
+# ---------------------------------------------------------------------------
+# Automatic K selection via elbow (80 % variance-explained threshold)
+# ---------------------------------------------------------------------------
+def _auto_k_elbow(
+    vectors: list[list[float]],
+    *,
+    restarts: int = _ELBOW_RESTARTS,
+    iters: int = _ELBOW_ITERS,
+) -> int:
+    """Choose K by finding where adding more clusters stops helping.
+
+    Probes a short grid of K values and returns the K that first accounts for
+    ≥ 80 % of the total distance improvement from min_K to max_K.  Falls back
+    to the heuristic `_suggest_k` if the grid is too small or degenerate.
+    """
+    n = len(vectors)
+    lo = max(8, int(math.sqrt(max(1, n) / 4)))
+    hi = min(45, max(lo + 5, int(math.sqrt(max(1, n)))))
+    num_steps = 7
+    step = max(1, (hi - lo) // (num_steps - 1))
+    ks = sorted(set(range(lo, hi + 1, step)))
+    if len(ks) < 2:
+        return _suggest_k(n)
+
+    print(f"  auto-K elbow: probing K={ks} on {n} vectors …")
+    dists = [
+        _kmeans_best_of_n(vectors, k, restarts=restarts, iters=iters)[2]
+        for k in ks
+    ]
+
+    total = dists[0] - dists[-1]
+    if total < 1e-4:
+        print(f"  auto-K: trivial improvement curve; using K={ks[0]}")
+        return ks[0]
+
+    cumulative = 0.0
+    for i in range(len(ks) - 1):
+        cumulative += dists[i] - dists[i + 1]
+        if cumulative / total >= 0.80:
+            chosen = ks[i + 1]
+            print(f"  auto-K elbow: chose K={chosen} (captured "
+                  f"{cumulative / total:.0%} of improvement at step {i+1})")
+            return chosen
+
+    print(f"  auto-K elbow: no clear elbow; using K={ks[-1]}")
+    return ks[-1]
+
+
+# ---------------------------------------------------------------------------
 # Representatives: top-N members closest to centroid
 # ---------------------------------------------------------------------------
 def _representative_members(
@@ -125,7 +230,7 @@ def _representative_members(
 ) -> dict[int, list[tuple[int, float]]]:
     mat = _norm_rows(np.array(vectors, dtype=np.float32))
     ctrs = _norm_rows(np.array(centroids, dtype=np.float32))
-    sims = mat @ ctrs.T   # (n, k)
+    sims = mat @ ctrs.T
     asgn = np.array(assignments)
 
     out: dict[int, list[tuple[int, float]]] = {}
@@ -238,8 +343,21 @@ def run_clustering(
     if len(ids) < 20:
         print(f"Not enough {kind} embeddings to cluster ({len(ids)}); skipping")
         return ""
-    K = k or _suggest_k(len(ids))
-    assignments, centroids = kmeans_cosine(vecs, K)
+
+    # Choose K: explicit override → elbow auto-select → heuristic fallback
+    if k:
+        K = k
+        print(f"  K={K} (explicit override)")
+    else:
+        try:
+            K = _auto_k_elbow(vecs)
+        except Exception as e:  # noqa: BLE001
+            K = _suggest_k(len(ids))
+            print(f"  auto-K failed ({e}); falling back to heuristic K={K}")
+
+    assignments, centroids, mean_dist = _kmeans_best_of_n(vecs, K, restarts=_RESTARTS)
+    print(f"  K={K}, mean intra-cluster distance={mean_dist:.4f} "
+          f"(best of {_RESTARTS} restarts)")
 
     reps = _representative_members(assignments, centroids, vecs, ids,
                                    top=max(label_samples, 8))
@@ -268,11 +386,11 @@ def run_clustering(
     for a in assignments:
         cluster_sizes[a] += 1
 
-    # Compute cosine distances in bulk using normalized vectors + centroids.
+    # Bulk cosine distances using normalised vectors + centroids
     mat = _norm_rows(np.array(vecs, dtype=np.float32))
-    ctrs = np.array(centroids, dtype=np.float32)   # already normalised by kmeans_cosine
+    ctrs = np.array(centroids, dtype=np.float32)
     asgn_arr = np.array(assignments, dtype=np.int32)
-    sims = (mat * ctrs[asgn_arr]).sum(axis=1)      # dot product with assigned centroid
+    sims = (mat * ctrs[asgn_arr]).sum(axis=1)
     distances = (1.0 - sims).tolist()
 
     with connect(db_path) as conn:
@@ -295,16 +413,18 @@ def run_clustering(
                 label = _label_cluster(samples, kind, backend, label_model)
             conn.execute(
                 "INSERT INTO cluster_summary"
-                "(run_id, kind, cluster, label, size, sample_ids, centroid_json, created_at)"
-                " VALUES(?,?,?,?,?,?,?,?)",
+                "(run_id, kind, cluster, label, size, sample_ids, "
+                " centroid_json, mean_distance, created_at)"
+                " VALUES(?,?,?,?,?,?,?,?,?)",
                 (run_id, kind, c, label, cluster_sizes[c],
-                 json.dumps(samples_ids), json.dumps(centroids[c]), now_iso),
+                 json.dumps(samples_ids), json.dumps(centroids[c]),
+                 mean_dist, now_iso),
             )
     return run_id
 
 
 # ---------------------------------------------------------------------------
-# Nearest-centroid assignment for PRs not yet in cluster_assignments
+# Nearest-centroid assignment for entities not yet in cluster_assignments
 # ---------------------------------------------------------------------------
 def _assign_unindexed(
     db_path: Path,
@@ -313,11 +433,21 @@ def _assign_unindexed(
     from_iso: str,
     to_iso: str | None,
 ) -> dict[int, int]:
-    """Return ``{cluster: count}`` for PRs merged in [from_iso, to_iso) that
+    """Return ``{cluster: count}`` for entities in [from_iso, to_iso) that
     have embeddings but no assignment in *run_id* — assigned to nearest centroid.
 
+    For kind='pr' filters on merged_at; for kind='issue' filters on created_at.
     Used by cluster_momentum to keep counts current without a full re-cluster.
     """
+    if kind == "pr":
+        tbl = "pull_requests"
+        time_col = "merged_at"
+        null_check = "AND p.merged_at IS NOT NULL"
+    else:
+        tbl = "issues"
+        time_col = "created_at"
+        null_check = ""
+
     with connect(db_path) as conn:
         c_rows = conn.execute(
             "SELECT cluster, centroid_json FROM cluster_summary "
@@ -332,17 +462,15 @@ def _assign_unindexed(
         )
         centroids = _norm_rows(centroids)
 
-        date_filter = "AND p.merged_at < ?" if to_iso else ""
-        # Placeholders in order: e.kind, p.merged_at >=, [p.merged_at <], ca.run_id
-        # Note: ca.kind = e.kind is a column comparison, not a parameter.
+        date_filter = f"AND p.{time_col} < ?" if to_iso else ""
         params = (kind, from_iso) + ((to_iso,) if to_iso else ()) + (run_id,)
-        pr_rows = conn.execute(
+        rows = conn.execute(
             f"""SELECT e.entity_id, e.vec
                 FROM embeddings e
-                JOIN pull_requests p ON p.number = e.entity_id
+                JOIN {tbl} p ON p.number = e.entity_id
                 WHERE e.kind = ?
-                  AND p.merged_at IS NOT NULL
-                  AND p.merged_at >= ?
+                  {null_check}
+                  AND p.{time_col} >= ?
                   {date_filter}
                   AND NOT EXISTS (
                     SELECT 1 FROM cluster_assignments ca
@@ -352,11 +480,11 @@ def _assign_unindexed(
             params,
         ).fetchall()
 
-    if not pr_rows:
+    if not rows:
         return {}
 
     vecs = np.array(
-        [json.loads(r["vec"])["v"] for r in pr_rows], dtype=np.float32
+        [json.loads(r["vec"])["v"] for r in rows], dtype=np.float32
     )
     vecs = _norm_rows(vecs)
     best_c_idx = (vecs @ centroids.T).argmax(axis=1)
@@ -382,7 +510,7 @@ def latest_cluster_run(db_path: Path, kind: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Momentum: 30d vs prior 30d, including PRs merged after the cluster run
+# Momentum: current window vs prior window, including post-cluster entities
 # ---------------------------------------------------------------------------
 def cluster_momentum(
     db_path: Path,
@@ -390,16 +518,17 @@ def cluster_momentum(
     *,
     window_days: int = 30,
 ) -> list[dict]:
-    """For each cluster, compare PR counts in the last *window_days* vs the
-    prior *window_days*.  PRs merged after the clustering run are assigned to
-    their nearest centroid on the fly so the counts stay current.
+    """For each cluster, compare entity counts in the last *window_days* vs the
+    prior *window_days*.  Entities created/merged after the clustering run are
+    assigned to their nearest centroid on the fly.
+
+    For kind='pr': compares PRs by merged_at.
+    For kind='issue': compares issues by created_at.
 
     Returns rows sorted by growth ratio descending.
     """
     rid = latest_cluster_run(db_path, kind)
     if not rid:
-        return []
-    if kind != "pr":
         return []
 
     now = datetime.now(timezone.utc)
@@ -408,8 +537,16 @@ def cluster_momentum(
     cur_start_iso = cur_start.isoformat()
     prev_start_iso = prev_start.isoformat()
 
+    if kind == "pr":
+        tbl = "pull_requests"
+        time_col = "merged_at"
+        null_check = "AND p.merged_at IS NOT NULL"
+    else:
+        tbl = "issues"
+        time_col = "created_at"
+        null_check = ""
+
     with connect(db_path) as conn:
-        # Staleness check
         run_ts_row = conn.execute(
             "SELECT MIN(created_at) AS t FROM cluster_summary WHERE run_id = ? AND kind = ?",
             (rid, kind),
@@ -418,27 +555,28 @@ def cluster_momentum(
             try:
                 run_age = (now - datetime.fromisoformat(run_ts_row["t"])).days
                 if run_age > 7:
-                    print(f"  cluster_momentum: latest run is {run_age}d old; "
-                          "including unassigned PRs via nearest-centroid")
+                    print(f"  cluster_momentum: latest {kind} run is {run_age}d old; "
+                          "including unassigned via nearest-centroid")
             except Exception:  # noqa: BLE001
                 pass
 
         cur_rows = conn.execute(
-            """SELECT ca.cluster, COUNT(DISTINCT ca.entity_id) AS n
+            f"""SELECT ca.cluster, COUNT(DISTINCT ca.entity_id) AS n
                FROM cluster_assignments ca
-               JOIN pull_requests p ON p.number = ca.entity_id
+               JOIN {tbl} p ON p.number = ca.entity_id
                WHERE ca.run_id = ? AND ca.kind = ?
-                 AND p.merged_at IS NOT NULL AND p.merged_at >= ?
+                 {null_check}
+                 AND p.{time_col} >= ?
                GROUP BY ca.cluster""",
             (rid, kind, cur_start_iso),
         ).fetchall()
         prev_rows = conn.execute(
-            """SELECT ca.cluster, COUNT(DISTINCT ca.entity_id) AS n
+            f"""SELECT ca.cluster, COUNT(DISTINCT ca.entity_id) AS n
                FROM cluster_assignments ca
-               JOIN pull_requests p ON p.number = ca.entity_id
+               JOIN {tbl} p ON p.number = ca.entity_id
                WHERE ca.run_id = ? AND ca.kind = ?
-                 AND p.merged_at IS NOT NULL
-                 AND p.merged_at >= ? AND p.merged_at < ?
+                 {null_check}
+                 AND p.{time_col} >= ? AND p.{time_col} < ?
                GROUP BY ca.cluster""",
             (rid, kind, prev_start_iso, cur_start_iso),
         ).fetchall()
@@ -453,7 +591,7 @@ def cluster_momentum(
     cur_map: dict[int, int] = {r["cluster"]: r["n"] for r in cur_rows}
     prev_map: dict[int, int] = {r["cluster"]: r["n"] for r in prev_rows}
 
-    # Add counts for PRs merged after the clustering run (nearest-centroid)
+    # Add counts for entities after the clustering run (nearest-centroid assignment)
     new_cur = _assign_unindexed(db_path, kind, rid, cur_start_iso, None)
     new_prev = _assign_unindexed(db_path, kind, rid, prev_start_iso, cur_start_iso)
     for c, n in new_cur.items():

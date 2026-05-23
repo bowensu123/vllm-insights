@@ -1,26 +1,35 @@
-"""Homepage hero — "today's takeaway" + a status strip of pipeline health.
+"""Homepage hero — upgrade verdict (when available) or daily takeaway.
 
-The takeaway is composed deterministically from already-cached data, with a
-final optional LLM polish pass. We do NOT regenerate the whole paragraph
-every cron run; we cache it per (latest_release_tag, day) so it only changes
-when the underlying signal does.
+Two modes
+---------
+verdict mode  (default when a release with an LLM summary exists and
+               the release is < 45 days old):
 
-What goes into the takeaway:
-  - Latest release tag + a verdict snippet (already cached in release_summaries)
-  - Top 1-2 cluster labels that grew most in the last 30 days
-  - Most-reacted PR in the last 7 days (👍 + 🚀 sum)
-  - Count of open release-blocker / regression issues
+  v0.9.2  ·  3 days ago
+  Should you upgrade?
 
-We deliberately keep this short (3-4 sentences). If any input is missing
-(e.g. embeddings haven't backfilled yet) we degrade gracefully and skip
-that clause rather than emit "no data".
+  ┌── Upgrade. Major FlashInfer speedups, no breaking changes. ──────────┐
 
-The status strip is pure machine data: last sync time, embedding backfill
-progress, number of data sources currently online (releases / PRs /
-issues / forks / registry / source_inventory / hn_mentions / etc.).
+  [⚡ 8 perf claims]  [🧬 3 new models]  [✓ No regressions]  [Full notes →]
+
+  → DeepSeek-V3 operators on H100 — yes, MLA + DeepEP wins land here.
+  → FP8 users on A100 — GEMM kernel improvements, worth upgrading.
+  → Llama-3 / AWQ users — no breaking changes, drop-in.
+
+  ── status strip ──────────────────────────────────────────────────────
+  [subscribe form]
+
+default mode  (no verdict / stale release):
+
+  <eyebrow>Today in vLLM · 2026-05-23</eyebrow>
+  <h1>A live view of what vLLM is shipping.</h1>
+  <p>Release clause. Hottest topic. Most-reacted PR. Open regressions.</p>
+  ── status strip ──
+  [subscribe form]
 """
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
@@ -28,8 +37,12 @@ from pathlib import Path
 from .analysis.social import hottest_recent_prs
 from .analysis.topics import cluster_momentum
 from .db import connect
-from .ui import status_strip
+from .ui import status_strip, subscribe_form
 
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
 
 def _latest_release(db_path: Path) -> dict | None:
     with connect(db_path) as conn:
@@ -42,7 +55,6 @@ def _latest_release(db_path: Path) -> dict | None:
 
 
 def _open_watch_count(db_path: Path) -> int:
-    """Open issues labelled release-blocker / regression / perf-regression."""
     with connect(db_path) as conn:
         any_row = conn.execute("SELECT 1 FROM issues LIMIT 1").fetchone()
         if not any_row:
@@ -59,13 +71,11 @@ def _open_watch_count(db_path: Path) -> int:
 
 
 def _verdict_first_line(summary_md: str | None) -> str | None:
-    """Extract the bolded one-liner verdict from a cached release summary.
-    The prompt schema places it right after `### Verdict`."""
+    """Extract the bold one-liner verdict that follows ``### Verdict``."""
     if not summary_md:
         return None
-    lines = summary_md.splitlines()
     in_verdict = False
-    for ln in lines:
+    for ln in summary_md.splitlines():
         s = ln.strip()
         if s.startswith("### Verdict"):
             in_verdict = True
@@ -75,14 +85,146 @@ def _verdict_first_line(summary_md: str | None) -> str | None:
                 continue
             if s.startswith("#"):
                 break
-            # Strip markdown bold/italic
             return s.replace("**", "").replace("__", "").strip()
     return None
 
 
+def _extract_who_bullets(summary_md: str, *, max_bullets: int = 3) -> list[str]:
+    """Return the first *max_bullets* bullets from ``### Who should upgrade``."""
+    bullets: list[str] = []
+    in_section = False
+    for ln in summary_md.splitlines():
+        s = ln.strip()
+        if "### who should upgrade" in s.lower():
+            in_section = True
+            continue
+        if in_section:
+            if s.startswith("###"):
+                break
+            if s.startswith(("-", "*")):
+                bullet = s.lstrip("-* ").strip().replace("**", "").replace("__", "")
+                if bullet:
+                    bullets.append(bullet)
+                    if len(bullets) >= max_bullets:
+                        break
+    return bullets
+
+
+def _release_signals(db_path: Path, tag: str, published_at: str) -> dict:
+    """Compute concrete signal counts for a release's chip row."""
+    with connect(db_path) as conn:
+        prev = conn.execute(
+            "SELECT published_at FROM releases WHERE is_prerelease = 0 "
+            "AND published_at < ? ORDER BY published_at DESC LIMIT 1",
+            (published_at,),
+        ).fetchone()
+        since = prev["published_at"] if prev else published_at[:10]
+
+        perf_n = conn.execute(
+            "SELECT COUNT(DISTINCT pc.pr_number) AS n FROM perf_claims pc "
+            "JOIN pull_requests p ON p.number = pc.pr_number "
+            "WHERE p.merged_at >= ? AND p.merged_at <= ?",
+            (since, published_at),
+        ).fetchone()["n"] or 0
+
+        model_n = conn.execute(
+            "SELECT COUNT(*) AS n FROM release_sections "
+            "WHERE tag = ?",
+            (tag,),
+        ).fetchone()["n"] or 0
+
+        watch_n = conn.execute(
+            "SELECT COUNT(*) AS n FROM issues WHERE state = 'OPEN' AND ("
+            "labels LIKE '%regression%' OR labels LIKE '%release-blocker%')"
+        ).fetchone()["n"] or 0
+
+    return {"perf_n": int(perf_n), "model_n": int(model_n), "watch_n": int(watch_n)}
+
+
+# ---------------------------------------------------------------------------
+# Verdict hero (rich mode)
+# ---------------------------------------------------------------------------
+
+def _render_verdict_hero(
+    rel: dict,
+    verdict: str,
+    signals: dict,
+    who_bullets: list[str],
+    db_path: Path,
+    newsletter_username: str,
+) -> str:
+    tag = escape(rel["tag"])
+    published = (rel.get("published_at") or "")[:10]
+
+    try:
+        d = datetime.fromisoformat(
+            rel["published_at"].replace("Z", "+00:00")
+        )
+        age_days = (datetime.now(timezone.utc) - d).days
+        age_str = (
+            "today" if age_days == 0 else
+            "yesterday" if age_days == 1 else
+            f"{age_days} days ago"
+        )
+    except Exception:  # noqa: BLE001
+        age_str = published
+
+    # Signal chips
+    chips: list[str] = []
+    if signals["perf_n"]:
+        chips.append(
+            f'<span class="chip chip-perf">⚡ {signals["perf_n"]} perf claims</span>'
+        )
+    if signals["model_n"]:
+        chips.append(
+            f'<span class="chip chip-model">🧬 {signals["model_n"]} release items</span>'
+        )
+    if signals["watch_n"] == 0:
+        chips.append('<span class="chip chip-ok">✓ No open regressions</span>')
+    else:
+        chips.append(
+            f'<span class="chip chip-watch">⚠️ {signals["watch_n"]} open regression'
+            f'{"s" if signals["watch_n"] != 1 else ""}</span>'
+        )
+    chips.append('<a class="chip chip-link" href="#latest-release">Full release notes ↓</a>')
+    chips_html = "\n  ".join(chips)
+
+    # "Who should upgrade" bullets
+    who_html = ""
+    if who_bullets:
+        lis = "\n    ".join(
+            f"<li>{escape(b)}</li>" for b in who_bullets
+        )
+        who_html = f'<div class="verdict-who"><ul>\n    {lis}\n  </ul></div>'
+
+    strip = build_status_strip(db_path)
+    sub = subscribe_form(newsletter_username)
+
+    return f"""
+<section class="hero hero-verdict" aria-labelledby="hero-verdict-title">
+  <div class="verdict-eyebrow">
+    <span class="ver-tag">{tag}</span>
+    <span class="ver-sep">·</span>
+    <span class="ver-age">{escape(age_str)}</span>
+  </div>
+  <p class="verdict-q">Should you upgrade?</p>
+  <h1 class="verdict-headline" id="hero-verdict-title">{escape(verdict)}</h1>
+  <div class="signal-chips">
+  {chips_html}
+  </div>
+  {who_html}
+  {strip}
+  {sub}
+</section>
+""".strip()
+
+
+# ---------------------------------------------------------------------------
+# Default hero (fallback / no verdict)
+# ---------------------------------------------------------------------------
+
 def build_hero_takeaway(db_path: Path) -> tuple[str, str]:
-    """Return `(eyebrow, body_html)`. The eyebrow is a small label
-    ('Today in vLLM') and the body is the synthesized paragraph."""
+    """Return `(eyebrow, body_html)`. Unchanged from prior implementation."""
     now = datetime.now(timezone.utc)
     eyebrow = f"Today in vLLM &middot; {now:%Y-%m-%d}"
     clauses: list[str] = []
@@ -101,7 +243,6 @@ def build_hero_takeaway(db_path: Path) -> tuple[str, str]:
                 + (f' shipped {escape(published)}.' if published else '.')
             )
 
-    # Top growing cluster (only if clustering has run)
     momentum = cluster_momentum(db_path, "pr", window_days=30)
     if momentum:
         top = momentum[0]
@@ -142,8 +283,6 @@ def build_hero_takeaway(db_path: Path) -> tuple[str, str]:
 
 
 def _backfill_progress(db_path: Path) -> tuple[int, int]:
-    """Returns (PRs embedded, total PRs). Used by the status strip + an
-    explicit progress bar shown when the ratio is well below 100%."""
     with connect(db_path) as conn:
         total_row = conn.execute(
             "SELECT COUNT(*) AS n FROM pull_requests"
@@ -155,32 +294,85 @@ def _backfill_progress(db_path: Path) -> tuple[int, int]:
 
 
 def build_status_strip(db_path: Path) -> str:
-    """Render the strip under the hero with `last sync / backfill / sources`."""
     with connect(db_path) as conn:
-        # Latest sync time across all entities
         max_ts = conn.execute(
             "SELECT MAX(last_synced_at) AS t FROM sync_state"
         ).fetchone()
         last_sync = (max_ts and max_ts["t"]) or ""
-        # Quick source counts so the strip surfaces "we have data"
         n_releases = conn.execute("SELECT COUNT(*) AS n FROM releases").fetchone()["n"]
         n_prs = conn.execute("SELECT COUNT(*) AS n FROM pull_requests").fetchone()["n"]
         n_issues = conn.execute("SELECT COUNT(*) AS n FROM issues").fetchone()["n"]
         n_arches = conn.execute(
             "SELECT COUNT(*) AS n FROM model_registry WHERE removed_at IS NULL"
         ).fetchone()["n"]
+        # 7-day PR delta for context
+        pr_7d = conn.execute(
+            "SELECT COUNT(*) AS n FROM pull_requests "
+            "WHERE merged_at IS NOT NULL AND merged_at >= datetime('now', '-7 days')"
+        ).fetchone()["n"] or 0
 
-    embedded, total_prs = _backfill_progress(db_path)
-    if total_prs > 0:
-        emb_hint = f"{embedded:,} / {total_prs:,} PRs"
-    else:
-        emb_hint = "—"
+    pr_label = f"{n_prs:,}"
+    pr_hint = f"+{pr_7d} this week" if pr_7d else None
 
     rows = [
         ("Updated", last_sync[:16].replace("T", " ") if last_sync else "—", "UTC"),
         ("Releases", f"{n_releases:,}", None),
-        ("PRs", f"{n_prs:,}", None),
+        ("PRs", pr_label, pr_hint),
         ("Issues", f"{n_issues:,}", None),
         ("Architectures", f"{n_arches:,}", None),
     ]
     return status_strip(rows)
+
+
+# ---------------------------------------------------------------------------
+# Public entry point used by build_site.py
+# ---------------------------------------------------------------------------
+
+def build_upgrade_hero(
+    db_path: Path,
+    repo_url: str,
+    newsletter_username: str = "",
+) -> str:
+    """Return the hero section HTML.
+
+    Uses verdict mode when:
+      - A release with an LLM summary exists
+      - The verdict one-liner can be extracted
+      - The release is < 45 days old
+
+    Otherwise falls back to the standard signal-paragraph hero.
+    """
+    rel = _latest_release(db_path)
+
+    if rel:
+        verdict = _verdict_first_line(rel.get("summary"))
+        if verdict and rel.get("published_at"):
+            try:
+                d = datetime.fromisoformat(
+                    rel["published_at"].replace("Z", "+00:00")
+                )
+                age_days = (datetime.now(timezone.utc) - d).days
+            except Exception:  # noqa: BLE001
+                age_days = 999
+
+            if age_days < 45:
+                signals = _release_signals(db_path, rel["tag"], rel["published_at"])
+                who_bullets = _extract_who_bullets(rel.get("summary") or "")
+                return _render_verdict_hero(
+                    rel, verdict, signals, who_bullets,
+                    db_path, newsletter_username,
+                )
+
+    # Fallback: standard takeaway hero
+    eyebrow, body_html = build_hero_takeaway(db_path)
+    strip = build_status_strip(db_path)
+    sub = subscribe_form(newsletter_username)
+    return f"""
+<section class="hero" aria-labelledby="hero-title">
+  <p class="hero-eyebrow">{eyebrow}</p>
+  <h1 class="hero-title" id="hero-title">A live view of what vLLM is shipping.</h1>
+  <div class="hero-body">{body_html}</div>
+  {strip}
+  {sub}
+</section>
+""".strip()

@@ -328,6 +328,10 @@ def init_db(db_path: Path) -> None:
             conn.execute(
                 "ALTER TABLE cluster_summary ADD COLUMN centroid_json TEXT"
             )
+        if "mean_distance" not in cs_cols:
+            conn.execute(
+                "ALTER TABLE cluster_summary ADD COLUMN mean_distance REAL"
+            )
 
 
 def get_sync_state(conn: sqlite3.Connection, entity: str) -> str | None:
