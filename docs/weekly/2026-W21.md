@@ -5,10 +5,12 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 _LLM digest skipped: HTTPStatusError: Client error '429 Too Many Requests' for url 'https://models.github.ai/inference/chat/completions'
 For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429_
 
-## PRs merged this window (220)
+## PRs merged this window (222)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43414](https://github.com/vllm-project/vllm/pull/43414) [Bugfix][Frontend] Fix input_audio parsing when uuid is present  — @ffggs → `nan`
+- [#41669](https://github.com/vllm-project/vllm/pull/41669) [ROCm][CI] Remove benchmarks test group and shard long test groups — @AndreasKaratzas → `nan`
 - [#39912](https://github.com/vllm-project/vllm/pull/39912) [Kernel] Batch invariant NVFP4 linear using cutlass — @jzakrzew → `nan`
 - [#42143](https://github.com/vllm-project/vllm/pull/42143) fix(eagle3): read norm_before_fc from eagle_config for NVIDIA checkpoint — @FERRARIZHENG → `nan`
 - [#43433](https://github.com/vllm-project/vllm/pull/43433) Keep scheduler alive for delayed KV connector frees — @lucifer1004 → `nan`
@@ -67,8 +69,6 @@ For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/St
 - [#43236](https://github.com/vllm-project/vllm/pull/43236) [ROCm][CI] add warmup to mem_util test before measurement — @divakar-amd → `nan`
 - [#41753](https://github.com/vllm-project/vllm/pull/41753) [ROCm] Add XGMI backend for MoRI Connector — @simondanielsson → `nan`
 - [#42855](https://github.com/vllm-project/vllm/pull/42855) [Bugfix] Fix DSV4 Base model swiglu limit issue in FP8 path  — @zx3xyy → `nan`
-- [#43378](https://github.com/vllm-project/vllm/pull/43378) [CI] Fix dockerfile dependency graph failure for pre-commit — @Isotr0py → `nan`
-- [#43283](https://github.com/vllm-project/vllm/pull/43283) [Rust Frontend] Move code from `vllm-frontend-rs` — @BugenZhao → `nan`
-- _…and 160 more_
+- _…and 162 more_
 
 </details>
