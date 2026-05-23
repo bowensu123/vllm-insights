@@ -555,8 +555,36 @@ def _latest_release_payload(db_path: Path) -> dict | None:
     return latest
 
 
-def _render_latest_release(db_path: Path, repo: str) -> tuple[str, str]:
-    """Render the release-verdict section body. Returns (body_html, tag)."""
+def _strip_md_sections(text: str, *headings: str) -> str:
+    """Remove named ### sections from markdown.
+
+    *headings* are lowercased prefix substrings matched against the heading text
+    (e.g. "verdict" removes "### Verdict", "who should" removes "### Who should upgrade").
+    """
+    out: list[str] = []
+    skip = False
+    for ln in text.splitlines():
+        s = ln.strip()
+        if s.startswith("###"):
+            h = s[3:].strip().lower()
+            skip = any(h.startswith(kw) for kw in headings)
+        if not skip:
+            out.append(ln)
+    # drop trailing blank lines
+    while out and not out[-1].strip():
+        out.pop()
+    return "\n".join(out)
+
+
+def _render_latest_release(
+    db_path: Path, repo: str, *, hero_shows_verdict: bool = False
+) -> tuple[str, str]:
+    """Render the release-verdict section body. Returns (body_html, tag).
+
+    When *hero_shows_verdict* is True the hero already shows the verdict
+    one-liner and the "Who should upgrade" bullets, so we strip those two
+    sections from the LLM summary to avoid repeating the same content.
+    """
     import markdown as md
     payload = _latest_release_payload(db_path)
     if not payload:
@@ -569,14 +597,26 @@ def _render_latest_release(db_path: Path, repo: str) -> tuple[str, str]:
 
     summary_html = ""
     if payload["summary_row"]:
-        rendered = md.markdown(payload["summary_row"]["summary"],
-                              extensions=["tables", "fenced_code"])
-        summary_html = (
-            "<details open class='release-summary'>"
-            "<summary>Upgrade verdict</summary>"
-            f"{rendered}"
-            "</details>"
-        )
+        summary_md = payload["summary_row"]["summary"] or ""
+        if hero_shows_verdict:
+            # Verdict headline + "Who should upgrade" are already in the hero.
+            summary_md = _strip_md_sections(
+                summary_md, "verdict", "who should"
+            )
+            label = "Breaking changes &amp; what's faster"
+            open_attr = ""           # start collapsed — hero handles the lead
+        else:
+            label = "Upgrade verdict"
+            open_attr = " open"
+
+        rendered = md.markdown(summary_md, extensions=["tables", "fenced_code"])
+        if rendered.strip():
+            summary_html = (
+                f"<details{open_attr} class='release-summary'>"
+                f"<summary>{label}</summary>"
+                f"{rendered}"
+                "</details>"
+            )
 
     body = f"""
 <p>
@@ -1207,12 +1247,14 @@ def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
     sections: list[tuple[Section, str]] = []
 
     # ── 1. Latest release ────────────────────────────────────────────────────
-    rel_body, rel_tag = _render_latest_release(db_path, repo)
+    hero_shows_verdict = (
+        signals["is_new_release"] or
+        (signals["rel_age_days"] is not None and signals["rel_age_days"] < 45)
+    )
+    rel_body, rel_tag = _render_latest_release(
+        db_path, repo, hero_shows_verdict=hero_shows_verdict
+    )
     if rel_body:
-        hero_shows_verdict = (
-            signals["is_new_release"] or
-            (signals["rel_age_days"] is not None and signals["rel_age_days"] < 45)
-        )
         sections.append((Section(
             slug="latest-release",
             title="Latest release" + (f" — {rel_tag}" if rel_tag else ""),
