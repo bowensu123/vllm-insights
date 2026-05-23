@@ -298,26 +298,45 @@ def embed_entities(
 
 def load_vectors(db_path: Path, kind: str, *, model: str | None = None
                  ) -> tuple[list[int], list[list[float]]]:
-    """Return parallel arrays `(entity_ids, vectors)` for everything embedded.
+    """Return parallel arrays ``(entity_ids, vectors)`` for everything embedded.
 
-    If `model` is None, returns vectors for every model we have on file —
-    useful when callers don't know which backend created them. In practice
-    the GH-Models and OpenAI direct models produce vectors in the same space
-    (they're both `text-embedding-3-small`), so mixing is fine.
+    When *model* is None (the default), selects only the most recently used
+    model to avoid silently mixing vectors from different embedding spaces.
+    If multiple models are present a warning is printed so operators know to
+    re-embed with a single backend.
     """
     ids: list[int] = []
     vecs: list[list[float]] = []
     with connect(db_path) as conn:
         if model:
-            rows = conn.execute(
-                "SELECT entity_id, vec FROM embeddings WHERE kind = ? AND model = ?",
-                (kind, model),
-            ).fetchall()
+            selected = model
         else:
-            rows = conn.execute(
-                "SELECT entity_id, vec FROM embeddings WHERE kind = ?",
+            # Pick the model whose most recent embedding was created latest.
+            model_row = conn.execute(
+                "SELECT model FROM embeddings WHERE kind = ? "
+                "GROUP BY model ORDER BY MAX(created_at) DESC LIMIT 1",
                 (kind,),
-            ).fetchall()
+            ).fetchone()
+            if not model_row:
+                return [], []
+            selected = model_row["model"]
+            all_models = [
+                r["model"] for r in conn.execute(
+                    "SELECT DISTINCT model FROM embeddings WHERE kind = ?", (kind,)
+                ).fetchall()
+            ]
+            if len(all_models) > 1:
+                print(
+                    f"  load_vectors: {len(all_models)} embedding models found "
+                    f"for kind={kind!r}; using most recent ({selected!r}). "
+                    "Re-run `analyze --embed` with a single backend to consolidate."
+                )
+
+        rows = conn.execute(
+            "SELECT entity_id, vec FROM embeddings WHERE kind = ? AND model = ?",
+            (kind, selected),
+        ).fetchall()
+
     for r in rows:
         obj = json.loads(r["vec"])
         ids.append(r["entity_id"])

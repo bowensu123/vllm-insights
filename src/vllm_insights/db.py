@@ -319,6 +319,15 @@ def init_db(db_path: Path) -> None:
                 conn.execute(f"ALTER TABLE pull_requests ADD COLUMN {col} INTEGER DEFAULT 0")
         if "updated_at" not in cols:
             conn.execute("ALTER TABLE pull_requests ADD COLUMN updated_at TEXT")
+        # cluster_summary: store centroids so momentum can assign new PRs without
+        # a full re-cluster.
+        cs_cols = {r["name"] for r in conn.execute(
+            "PRAGMA table_info(cluster_summary)"
+        ).fetchall()}
+        if "centroid_json" not in cs_cols:
+            conn.execute(
+                "ALTER TABLE cluster_summary ADD COLUMN centroid_json TEXT"
+            )
 
 
 def get_sync_state(conn: sqlite3.Connection, entity: str) -> str | None:

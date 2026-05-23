@@ -1,17 +1,17 @@
 """Discover topics in PRs / issues by clustering their embeddings.
 
-The clustering algorithm is plain K-means in numpy. We deliberately don't
-pull sklearn for this — K-means is 30 lines and the input shape (~15k
-vectors × 256 dims) is small enough that vectorised numpy on cosine distance
-runs in well under a second.
-
-For each cluster we then ask the LLM to read a handful of representative
-titles and write a 2-4-word topic label. That converts "cluster 7" into
-"FP8 kernels & quant configs" — which is the actual deliverable.
-
-Cluster assignments + labels land in `cluster_assignments` and
-`cluster_summary`. The homepage reads only `cluster_summary` for the top
-N labels.
+Pipeline
+--------
+1. Load L2-normalised embedding vectors from the `embeddings` table.
+2. Run K-means (cosine similarity via dot product on unit-norm vectors)
+   using numpy for speed — ~100× faster than the old pure-Python loop.
+3. For each cluster, ask an LLM for a 2-4-word topic label.  If the new
+   cluster overlaps ≥ 60 % (Jaccard) with a cluster from the previous run,
+   reuse the old label so topics don't drift every cron.
+4. Persist assignments, labels, and centroids.  Storing centroids means
+   `cluster_momentum` can assign newly-merged PRs (not yet re-clustered) to
+   their nearest cluster on the fly, so momentum counts stay current without
+   waiting for the next full cluster run.
 """
 from __future__ import annotations
 
@@ -19,124 +19,188 @@ import json
 import math
 import os
 import random
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import numpy as np
 
 from ..db import connect
 from ..summarize import _call_anthropic, _call_github_models
 from .embeddings import load_vectors
 
 
-# K-means hyperparameters. We pick K heuristically: roughly sqrt(N/2),
-# clamped to [12, 40]. That gives reasonable granularity for the few-hundred
-# to few-thousand vectors a typical vLLM-insights snapshot has.
+# ---------------------------------------------------------------------------
+# K heuristic: roughly sqrt(N/2), clamped to [12, 40].
+# ---------------------------------------------------------------------------
 def _suggest_k(n: int) -> int:
     return max(12, min(40, int(math.sqrt(max(1, n) / 2))))
 
 
+def _norm_rows(mat: np.ndarray) -> np.ndarray:
+    """Row-wise L2 normalisation. Zero-norm rows are left unchanged."""
+    norms = np.linalg.norm(mat, axis=1, keepdims=True)
+    norms = np.where(norms < 1e-10, 1.0, norms)
+    return mat / norms
+
+
+# kept for single-vector callers outside this module
 def _l2_normalise(vec: list[float]) -> list[float]:
     s = math.sqrt(sum(x * x for x in vec))
-    if s <= 0:
-        return vec
-    return [x / s for x in vec]
+    return [x / s for x in vec] if s > 0 else vec
 
 
-def kmeans_cosine(vectors: list[list[float]], k: int, *,
-                  iters: int = 20, seed: int = 7) -> tuple[list[int], list[list[float]]]:
-    """Plain k-means with cosine similarity (works because we L2-normalise).
+# ---------------------------------------------------------------------------
+# K-means (cosine) — numpy implementation
+# ---------------------------------------------------------------------------
+def kmeans_cosine(
+    vectors: list[list[float]],
+    k: int,
+    *,
+    iters: int = 20,
+    seed: int = 7,
+) -> tuple[list[int], list[list[float]]]:
+    """K-means with cosine similarity.
 
-    Returns `(assignments, centroids)`. No numpy dependency on purpose — the
-    inputs are small and avoiding numpy keeps the codebase boring.
+    Vectors are L2-normalised once so dot product == cosine similarity.
+    Returns ``(assignments, centroids)`` as plain Python lists so callers
+    don't need numpy.
     """
     if not vectors:
         return [], []
-    rng = random.Random(seed)
-    n = len(vectors)
-    d = len(vectors[0])
-    # L2-normalise once so dot product == cosine similarity.
-    vecs = [_l2_normalise(v) for v in vectors]
-    # k-means++ style init: first centroid at random, subsequent ones biased
-    # away from already-chosen centroids.
-    centroid_idx = [rng.randrange(n)]
-    for _ in range(1, k):
-        # Distance to nearest existing centroid (1 - cosine since unit-norm).
-        dists = []
-        for i in range(n):
-            best = 0.0
-            for ci in centroid_idx:
-                dot = sum(vecs[i][j] * vecs[ci][j] for j in range(d))
-                if dot > best:
-                    best = dot
-            dists.append(max(0.0, 1.0 - best))
-        total = sum(dists)
-        if total <= 0:
-            centroid_idx.append(rng.randrange(n))
-            continue
-        # Weighted pick proportional to dist
-        target = rng.random() * total
-        acc = 0.0
-        for i, dist in enumerate(dists):
-            acc += dist
-            if acc >= target:
-                centroid_idx.append(i)
-                break
-    centroids = [list(vecs[i]) for i in centroid_idx]
 
-    assignments = [0] * n
+    rng = np.random.default_rng(seed)
+    mat = _norm_rows(np.array(vectors, dtype=np.float32))
+    n, d = mat.shape
+    k = min(k, n)
+
+    # k-means++ initialisation: each new centroid is drawn proportional to
+    # (1 - max_cosine_sim_to_existing_centroids) so we spread out.
+    first = int(rng.integers(n))
+    centroid_idx = [first]
+    for _ in range(1, k):
+        C = mat[centroid_idx]          # (m, d)
+        best_sim = (mat @ C.T).max(axis=1)  # (n,)
+        dists = np.clip(1.0 - best_sim, 0.0, None)
+        total = float(dists.sum())
+        if total <= 0.0:
+            centroid_idx.append(int(rng.integers(n)))
+        else:
+            centroid_idx.append(int(rng.choice(n, p=dists / total)))
+
+    centroids = mat[centroid_idx].copy()   # (k, d)
+    assignments = np.zeros(n, dtype=np.int32)
+
     for _ in range(iters):
-        changed = 0
-        for i in range(n):
-            best_c, best_sim = 0, -2.0
-            v = vecs[i]
-            for c, ctr in enumerate(centroids):
-                sim = sum(v[j] * ctr[j] for j in range(d))
-                if sim > best_sim:
-                    best_sim, best_c = sim, c
-            if assignments[i] != best_c:
-                changed += 1
-            assignments[i] = best_c
-        # Recompute centroids as the L2-normalised mean of their members.
-        sums = [[0.0] * d for _ in range(k)]
-        counts = [0] * k
-        for i in range(n):
-            c = assignments[i]
-            counts[c] += 1
-            for j in range(d):
-                sums[c][j] += vecs[i][j]
+        new_asgn = (mat @ centroids.T).argmax(axis=1).astype(np.int32)
+        changed = int((new_asgn != assignments).sum())
+        assignments = new_asgn
+
+        new_c = np.zeros_like(centroids)
         for c in range(k):
-            if counts[c] == 0:
-                # Re-seed empty cluster from a random point. Keeps k stable.
-                seed_i = rng.randrange(n)
-                centroids[c] = list(vecs[seed_i])
-                continue
-            avg = [s / counts[c] for s in sums[c]]
-            centroids[c] = _l2_normalise(avg)
+            members = mat[assignments == c]
+            if len(members) == 0:
+                new_c[c] = mat[int(rng.integers(n))]
+            else:
+                mean = members.mean(axis=0)
+                norm = float(np.linalg.norm(mean))
+                new_c[c] = mean / norm if norm > 1e-10 else mean
+        centroids = new_c
+
         if changed < max(1, n // 200):
             break
-    return assignments, centroids
+
+    return assignments.tolist(), centroids.tolist()
 
 
+# ---------------------------------------------------------------------------
+# Representatives: top-N members closest to centroid
+# ---------------------------------------------------------------------------
 def _representative_members(
-    assignments: list[int], centroids: list[list[float]],
-    vectors: list[list[float]], ids: list[int], *, top: int = 8,
+    assignments: list[int],
+    centroids: list[list[float]],
+    vectors: list[list[float]],
+    ids: list[int],
+    *,
+    top: int = 8,
 ) -> dict[int, list[tuple[int, float]]]:
-    """For each cluster, return the `top` member ids closest to the centroid."""
+    mat = _norm_rows(np.array(vectors, dtype=np.float32))
+    ctrs = _norm_rows(np.array(centroids, dtype=np.float32))
+    sims = mat @ ctrs.T   # (n, k)
+    asgn = np.array(assignments)
+
     out: dict[int, list[tuple[int, float]]] = {}
-    vecs = [_l2_normalise(v) for v in vectors]
     for c in range(len(centroids)):
-        member_idx = [i for i, a in enumerate(assignments) if a == c]
-        scored = []
-        for i in member_idx:
-            sim = sum(vecs[i][j] * centroids[c][j] for j in range(len(centroids[c])))
-            scored.append((ids[i], sim))
-        scored.sort(key=lambda t: -t[1])
+        mask = np.where(asgn == c)[0]
+        if len(mask) == 0:
+            out[c] = []
+            continue
+        scored = sorted(
+            ((ids[i], float(sims[i, c])) for i in mask),
+            key=lambda t: -t[1],
+        )
         out[c] = scored[:top]
     return out
 
 
-def _label_cluster(samples: list[str], kind: str,
-                   backend: str, model: str) -> str:
-    """Ask the LLM for a 2-4-word topic label from a handful of titles."""
+# ---------------------------------------------------------------------------
+# Label stability: reuse old labels when cluster membership overlaps enough
+# ---------------------------------------------------------------------------
+def _reuse_stable_labels(
+    new_assignments: list[int],
+    new_ids: list[int],
+    prev_run_id: str,
+    db_path: Path,
+    kind: str,
+    *,
+    overlap_threshold: float = 0.6,
+) -> dict[int, str]:
+    """Return ``{new_cluster_id: old_label}`` for clusters whose Jaccard
+    overlap with the best-matching cluster from *prev_run_id* is ≥ threshold.
+    Clusters below the threshold get a fresh LLM label.
+    """
+    if not prev_run_id:
+        return {}
+    with connect(db_path) as conn:
+        old_asgn = conn.execute(
+            "SELECT entity_id, cluster FROM cluster_assignments "
+            "WHERE run_id = ? AND kind = ?",
+            (prev_run_id, kind),
+        ).fetchall()
+        old_labels = {
+            r["cluster"]: r["label"]
+            for r in conn.execute(
+                "SELECT cluster, label FROM cluster_summary "
+                "WHERE run_id = ? AND kind = ?",
+                (prev_run_id, kind),
+            ).fetchall()
+        }
+
+    old_members: dict[int, set[int]] = {}
+    for r in old_asgn:
+        old_members.setdefault(r["cluster"], set()).add(r["entity_id"])
+
+    new_members: dict[int, set[int]] = {}
+    for eid, c in zip(new_ids, new_assignments):
+        new_members.setdefault(c, set()).add(eid)
+
+    reuse: dict[int, str] = {}
+    for nc, nm in new_members.items():
+        best_j, best_label = 0.0, None
+        for oc, om in old_members.items():
+            inter = len(nm & om)
+            union = len(nm | om)
+            j = inter / union if union > 0 else 0.0
+            if j > best_j:
+                best_j, best_label = j, old_labels.get(oc)
+        if best_j >= overlap_threshold and best_label:
+            reuse[nc] = best_label
+    return reuse
+
+
+# ---------------------------------------------------------------------------
+# LLM labelling
+# ---------------------------------------------------------------------------
+def _label_cluster(samples: list[str], kind: str, backend: str, model: str) -> str:
     sys = (
         "You name clusters of vLLM "
         + ("pull request" if kind == "pr" else "GitHub issue")
@@ -154,6 +218,9 @@ def _label_cluster(samples: list[str], kind: str,
         return f"misc (label failed: {type(e).__name__})"
 
 
+# ---------------------------------------------------------------------------
+# Main clustering entry point
+# ---------------------------------------------------------------------------
 def run_clustering(
     db_path: Path,
     kind: str,
@@ -163,11 +230,9 @@ def run_clustering(
     label_model: str | None = None,
     label_samples: int = 6,
 ) -> str:
-    """Cluster the given `kind` ('pr' | 'issue'), write assignments + LLM
-    cluster labels, return the run_id.
+    """Cluster embedded *kind* ('pr' | 'issue'), persist assignments + labels.
 
-    No-op if there are fewer than 20 embedded entities (clustering needs
-    enough data to be meaningful).
+    Returns the run_id, or '' if there isn't enough data.
     """
     ids, vecs = load_vectors(db_path, kind)
     if len(ids) < 20:
@@ -176,138 +241,232 @@ def run_clustering(
     K = k or _suggest_k(len(ids))
     assignments, centroids = kmeans_cosine(vecs, K)
 
-    # Gather representatives + their titles for LLM labelling.
     reps = _representative_members(assignments, centroids, vecs, ids,
                                    top=max(label_samples, 8))
     title_lookup: dict[int, str] = {}
     with connect(db_path) as conn:
-        if kind == "pr":
-            for r in conn.execute("SELECT number, title FROM pull_requests").fetchall():
-                title_lookup[r["number"]] = r["title"] or ""
-        else:
-            for r in conn.execute("SELECT number, title FROM issues").fetchall():
-                title_lookup[r["number"]] = r["title"] or ""
+        tbl = "pull_requests" if kind == "pr" else "issues"
+        for r in conn.execute(f"SELECT number, title FROM {tbl}").fetchall():
+            title_lookup[r["number"]] = r["title"] or ""
 
-    # Pick a backend for labelling. GitHub Models is free for OSS repos.
-    backend = backend or (
-        "github" if os.getenv("GITHUB_TOKEN") else "anthropic"
+    backend = backend or ("github" if os.getenv("GITHUB_TOKEN") else "anthropic")
+    label_model = label_model or (
+        "openai/gpt-4o-mini" if backend == "github" else "claude-haiku-4-5"
     )
-    if backend == "github":
-        label_model = label_model or "openai/gpt-4o-mini"
-    else:
-        label_model = label_model or "claude-haiku-4-5"
 
     now_iso = datetime.now(timezone.utc).isoformat()
     run_id = f"{kind}-{now_iso[:19].replace(':', '').replace('-', '')}"
+
+    # Check previous run for label reuse
+    prev_run_id = latest_cluster_run(db_path, kind) or ""
+    reuse = _reuse_stable_labels(assignments, ids, prev_run_id, db_path, kind)
+    reused_n = sum(1 for c in range(K) if c in reuse)
+    if reused_n:
+        print(f"  Reusing {reused_n}/{K} stable labels from previous run")
 
     cluster_sizes = [0] * K
     for a in assignments:
         cluster_sizes[a] += 1
 
+    # Compute cosine distances in bulk using normalized vectors + centroids.
+    mat = _norm_rows(np.array(vecs, dtype=np.float32))
+    ctrs = np.array(centroids, dtype=np.float32)   # already normalised by kmeans_cosine
+    asgn_arr = np.array(assignments, dtype=np.int32)
+    sims = (mat * ctrs[asgn_arr]).sum(axis=1)      # dot product with assigned centroid
+    distances = (1.0 - sims).tolist()
+
     with connect(db_path) as conn:
-        # Write assignments
         for i, entity_id in enumerate(ids):
-            sim = sum(_l2_normalise(vecs[i])[j] * centroids[assignments[i]][j]
-                      for j in range(len(centroids[0])))
             conn.execute(
-                """INSERT INTO cluster_assignments(run_id, kind, entity_id, cluster, distance)
-                   VALUES(?, ?, ?, ?, ?)""",
-                (run_id, kind, entity_id, assignments[i], 1.0 - sim),
+                "INSERT INTO cluster_assignments"
+                "(run_id, kind, entity_id, cluster, distance) VALUES(?,?,?,?,?)",
+                (run_id, kind, entity_id, assignments[i], distances[i]),
             )
 
-        # For each cluster, get sample titles and ask LLM to label
         for c in range(K):
             samples_ids = [eid for eid, _ in reps[c][:label_samples]]
-            samples = [title_lookup.get(eid, "") for eid in samples_ids]
-            samples = [s for s in samples if s.strip()]
+            samples = [s for s in (title_lookup.get(eid, "") for eid in samples_ids)
+                       if s.strip()]
             if not samples:
                 label = "empty"
+            elif c in reuse:
+                label = reuse[c]
             else:
                 label = _label_cluster(samples, kind, backend, label_model)
             conn.execute(
-                """INSERT INTO cluster_summary(run_id, kind, cluster, label,
-                                                size, sample_ids, created_at)
-                   VALUES(?, ?, ?, ?, ?, ?, ?)""",
+                "INSERT INTO cluster_summary"
+                "(run_id, kind, cluster, label, size, sample_ids, centroid_json, created_at)"
+                " VALUES(?,?,?,?,?,?,?,?)",
                 (run_id, kind, c, label, cluster_sizes[c],
-                 json.dumps(samples_ids), now_iso),
+                 json.dumps(samples_ids), json.dumps(centroids[c]), now_iso),
             )
     return run_id
 
 
+# ---------------------------------------------------------------------------
+# Nearest-centroid assignment for PRs not yet in cluster_assignments
+# ---------------------------------------------------------------------------
+def _assign_unindexed(
+    db_path: Path,
+    kind: str,
+    run_id: str,
+    from_iso: str,
+    to_iso: str | None,
+) -> dict[int, int]:
+    """Return ``{cluster: count}`` for PRs merged in [from_iso, to_iso) that
+    have embeddings but no assignment in *run_id* — assigned to nearest centroid.
+
+    Used by cluster_momentum to keep counts current without a full re-cluster.
+    """
+    with connect(db_path) as conn:
+        c_rows = conn.execute(
+            "SELECT cluster, centroid_json FROM cluster_summary "
+            "WHERE run_id = ? AND kind = ? AND centroid_json IS NOT NULL",
+            (run_id, kind),
+        ).fetchall()
+        if not c_rows:
+            return {}
+        cluster_ids = [r["cluster"] for r in c_rows]
+        centroids = np.array(
+            [json.loads(r["centroid_json"]) for r in c_rows], dtype=np.float32
+        )
+        centroids = _norm_rows(centroids)
+
+        date_filter = "AND p.merged_at < ?" if to_iso else ""
+        # Placeholders in order: e.kind, p.merged_at >=, [p.merged_at <], ca.run_id
+        # Note: ca.kind = e.kind is a column comparison, not a parameter.
+        params = (kind, from_iso) + ((to_iso,) if to_iso else ()) + (run_id,)
+        pr_rows = conn.execute(
+            f"""SELECT e.entity_id, e.vec
+                FROM embeddings e
+                JOIN pull_requests p ON p.number = e.entity_id
+                WHERE e.kind = ?
+                  AND p.merged_at IS NOT NULL
+                  AND p.merged_at >= ?
+                  {date_filter}
+                  AND NOT EXISTS (
+                    SELECT 1 FROM cluster_assignments ca
+                    WHERE ca.run_id = ? AND ca.kind = e.kind
+                      AND ca.entity_id = e.entity_id
+                  )""",
+            params,
+        ).fetchall()
+
+    if not pr_rows:
+        return {}
+
+    vecs = np.array(
+        [json.loads(r["vec"])["v"] for r in pr_rows], dtype=np.float32
+    )
+    vecs = _norm_rows(vecs)
+    best_c_idx = (vecs @ centroids.T).argmax(axis=1)
+
+    counts: dict[int, int] = {}
+    for idx in best_c_idx.tolist():
+        c = cluster_ids[idx]
+        counts[c] = counts.get(c, 0) + 1
+    return counts
+
+
+# ---------------------------------------------------------------------------
+# Persistence helpers
+# ---------------------------------------------------------------------------
 def latest_cluster_run(db_path: Path, kind: str) -> str | None:
-    """Most recent run_id for a kind; None if no clustering has been done yet."""
     with connect(db_path) as conn:
         row = conn.execute(
-            """SELECT run_id FROM cluster_summary WHERE kind = ?
-               ORDER BY created_at DESC LIMIT 1""",
+            "SELECT run_id FROM cluster_summary WHERE kind = ? "
+            "ORDER BY created_at DESC LIMIT 1",
             (kind,),
         ).fetchone()
     return row["run_id"] if row else None
 
 
-def cluster_momentum(db_path: Path, kind: str = "pr",
-                     *, window_days: int = 30) -> list[dict]:
-    """For each cluster in the latest run, compute PR counts in the last
-    `window_days` vs the previous `window_days`. Returns rows sorted by
-    growth ratio descending.
+# ---------------------------------------------------------------------------
+# Momentum: 30d vs prior 30d, including PRs merged after the cluster run
+# ---------------------------------------------------------------------------
+def cluster_momentum(
+    db_path: Path,
+    kind: str = "pr",
+    *,
+    window_days: int = 30,
+) -> list[dict]:
+    """For each cluster, compare PR counts in the last *window_days* vs the
+    prior *window_days*.  PRs merged after the clustering run are assigned to
+    their nearest centroid on the fly so the counts stay current.
 
-    A "story" emerges naturally: clusters where this-window > prior-window
-    are heating up; the reverse is cooling. We don't editorialise — the
-    numbers do the talking.
+    Returns rows sorted by growth ratio descending.
     """
     rid = latest_cluster_run(db_path, kind)
     if not rid:
         return []
     if kind != "pr":
-        # Issue momentum exists but is less useful (issue activity is dominated
-        # by comments, which we don't currently track); skip for now.
         return []
 
+    now = datetime.now(timezone.utc)
+    cur_start = now - timedelta(days=window_days)
+    prev_start = now - timedelta(days=window_days * 2)
+    cur_start_iso = cur_start.isoformat()
+    prev_start_iso = prev_start.isoformat()
+
     with connect(db_path) as conn:
-        # Active window count
+        # Staleness check
+        run_ts_row = conn.execute(
+            "SELECT MIN(created_at) AS t FROM cluster_summary WHERE run_id = ? AND kind = ?",
+            (rid, kind),
+        ).fetchone()
+        if run_ts_row and run_ts_row["t"]:
+            try:
+                run_age = (now - datetime.fromisoformat(run_ts_row["t"])).days
+                if run_age > 7:
+                    print(f"  cluster_momentum: latest run is {run_age}d old; "
+                          "including unassigned PRs via nearest-centroid")
+            except Exception:  # noqa: BLE001
+                pass
+
         cur_rows = conn.execute(
             """SELECT ca.cluster, COUNT(DISTINCT ca.entity_id) AS n
                FROM cluster_assignments ca
                JOIN pull_requests p ON p.number = ca.entity_id
                WHERE ca.run_id = ? AND ca.kind = ?
-                 AND p.merged_at IS NOT NULL
-                 AND p.merged_at >= datetime('now', ?)
+                 AND p.merged_at IS NOT NULL AND p.merged_at >= ?
                GROUP BY ca.cluster""",
-            (rid, kind, f"-{window_days} days"),
+            (rid, kind, cur_start_iso),
         ).fetchall()
-        # Prior window count
         prev_rows = conn.execute(
             """SELECT ca.cluster, COUNT(DISTINCT ca.entity_id) AS n
                FROM cluster_assignments ca
                JOIN pull_requests p ON p.number = ca.entity_id
                WHERE ca.run_id = ? AND ca.kind = ?
                  AND p.merged_at IS NOT NULL
-                 AND p.merged_at >= datetime('now', ?)
-                 AND p.merged_at <  datetime('now', ?)
+                 AND p.merged_at >= ? AND p.merged_at < ?
                GROUP BY ca.cluster""",
-            (rid, kind,
-             f"-{window_days * 2} days", f"-{window_days} days"),
+            (rid, kind, prev_start_iso, cur_start_iso),
         ).fetchall()
         labels = {
             r["cluster"]: r["label"]
             for r in conn.execute(
-                "SELECT cluster, label FROM cluster_summary "
-                "WHERE run_id = ? AND kind = ?",
+                "SELECT cluster, label FROM cluster_summary WHERE run_id = ? AND kind = ?",
                 (rid, kind),
             ).fetchall()
         }
 
-    cur_map = {r["cluster"]: r["n"] for r in cur_rows}
-    prev_map = {r["cluster"]: r["n"] for r in prev_rows}
+    cur_map: dict[int, int] = {r["cluster"]: r["n"] for r in cur_rows}
+    prev_map: dict[int, int] = {r["cluster"]: r["n"] for r in prev_rows}
+
+    # Add counts for PRs merged after the clustering run (nearest-centroid)
+    new_cur = _assign_unindexed(db_path, kind, rid, cur_start_iso, None)
+    new_prev = _assign_unindexed(db_path, kind, rid, prev_start_iso, cur_start_iso)
+    for c, n in new_cur.items():
+        cur_map[c] = cur_map.get(c, 0) + n
+    for c, n in new_prev.items():
+        prev_map[c] = prev_map.get(c, 0) + n
+
     out: list[dict] = []
     for cluster, label in labels.items():
         cur = cur_map.get(cluster, 0)
         prev = prev_map.get(cluster, 0)
         if cur + prev == 0:
             continue
-        if cur == 0 and prev == 0:
-            continue
-        # Smoothed ratio so a 0→3 jump shows up properly without divide-by-zero.
         ratio = (cur + 1) / (prev + 1)
         out.append({
             "cluster": cluster,
@@ -320,9 +479,10 @@ def cluster_momentum(db_path: Path, kind: str = "pr",
     return out
 
 
+# ---------------------------------------------------------------------------
+# Per-PR cluster lookup (used by feature pages)
+# ---------------------------------------------------------------------------
 def cluster_for_pr(db_path: Path, pr_number: int) -> dict | None:
-    """Get the cluster label for one PR (latest run). Used by other UI
-    sections to badge PRs with their topic."""
     rid = latest_cluster_run(db_path, "pr")
     if not rid:
         return None
@@ -339,9 +499,10 @@ def cluster_for_pr(db_path: Path, pr_number: int) -> dict | None:
     return dict(row) if row else None
 
 
+# ---------------------------------------------------------------------------
+# Top clusters for the homepage
+# ---------------------------------------------------------------------------
 def load_top_clusters(db_path: Path, kind: str, *, top: int = 10) -> list[dict]:
-    """Top `top` clusters from the most recent run, ordered by size desc.
-    Returns rows with label, size, and sample_ids (parsed)."""
     rid = latest_cluster_run(db_path, kind)
     if not rid:
         return []
