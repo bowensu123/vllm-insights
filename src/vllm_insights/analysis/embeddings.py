@@ -215,13 +215,13 @@ def embed_entities(
           f"(model={model}, batch={batch})")
 
     if kind == "pr":
-        select_sql = "SELECT number AS id, title, body FROM pull_requests"
+        select_sql = "SELECT number AS id, title, body FROM pull_requests ORDER BY number DESC"
     elif kind == "issue":
-        select_sql = "SELECT number AS id, title, '' AS body FROM issues"
+        select_sql = "SELECT number AS id, title, '' AS body FROM issues ORDER BY number DESC"
     else:
         raise ValueError(f"unknown kind {kind!r}")
     if limit:
-        select_sql += f" ORDER BY id DESC LIMIT {int(limit)}"
+        select_sql += f" LIMIT {int(limit)}"
 
     with connect(db_path) as conn:
         rows = conn.execute(select_sql).fetchall()

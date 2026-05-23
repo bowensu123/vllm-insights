@@ -969,12 +969,10 @@ def _render_topic_momentum(db_path: Path) -> str:
     rows = cluster_momentum(db_path, "pr", window_days=30)
     if not rows:
         return ""
-    growing = [r for r in rows if r["ratio"] > 1.0 and r["current"] >= 2][:6]
+    growing = [r for r in rows if r["ratio"] > 1.0 and r["current"] >= 1][:6]
     shrinking = list(reversed(
-        [r for r in rows if r["ratio"] < 1.0 and r["previous"] >= 2]
+        [r for r in rows if r["ratio"] < 1.0 and r["previous"] >= 1]
     ))[:6]
-    if not growing and not shrinking:
-        return ""
 
     def _block(title: str, items: list[dict], delta_class: str) -> str:
         if not items:
@@ -987,6 +985,22 @@ def _render_topic_momentum(db_path: Path) -> str:
             for r in items
         )
         return f'<div class="momentum-col"><h3>{title}</h3><ul>{lis}</ul></div>'
+
+    if not growing and not shrinking:
+        # No directional signal: show most-active topics by recent count as fallback
+        active = sorted(rows, key=lambda r: r["current"] + r["previous"], reverse=True)[:6]
+        lis = "".join(
+            f'<li><span class="topic-label">{escape(r["label"])}</span>'
+            f'<span class="momentum" style="color:var(--fg-3);font-size:.8rem">'
+            f'{r["current"]} / {r["previous"]}</span></li>'
+            for r in active
+        )
+        return (
+            '<p style="font-size:.78rem;color:var(--fg-3);margin:.2rem 0 .5rem">'
+            'Activity roughly stable — showing most active topics.</p>'
+            f'<div class="momentum-grid"><div class="momentum-col">'
+            f'<h3>Most active (30d / prior 30d)</h3><ul>{lis}</ul></div></div>'
+        )
 
     return (
         '<div class="momentum-grid">'
