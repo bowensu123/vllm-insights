@@ -173,7 +173,9 @@ def _detect_backend(explicit: str | None) -> str:
     env = os.getenv("LLM_BACKEND", "").strip().lower()
     if env:
         return env
-    if os.getenv("GITHUB_TOKEN"):
+    if os.getenv("ANTHROPIC_API_KEY", "").strip():
+        return "anthropic"
+    if os.getenv("GITHUB_TOKEN", "").strip():
         return "github"
     return "anthropic"
 

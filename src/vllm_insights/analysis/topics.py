@@ -24,14 +24,15 @@ from __future__ import annotations
 import json
 import math
 import os
-import random
+import re
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
 
 from ..db import connect
-from ..summarize import _call_anthropic, _call_github_models
+from ..summarize import _call_anthropic
 from .embeddings import load_vectors
 
 
@@ -303,24 +304,55 @@ def _reuse_stable_labels(
 
 
 # ---------------------------------------------------------------------------
-# LLM labelling
+# Heuristic label (no LLM required — used as fallback)
 # ---------------------------------------------------------------------------
-def _label_cluster(samples: list[str], kind: str, backend: str, model: str) -> str:
+_STOP = frozenset({
+    "add", "fix", "update", "use", "support", "enable", "for", "the", "a",
+    "an", "of", "to", "in", "and", "or", "with", "from", "by", "on", "feat",
+    "refactor", "improve", "remove", "implement", "handle", "allow", "make",
+    "clean", "get", "set", "bump", "chore", "docs", "test", "ci", "misc",
+    "also", "when", "not", "be", "at", "more", "this", "that", "some",
+})
+
+
+def _heuristic_label(samples: list[str]) -> str:
+    """2-3 word label from the most frequent significant tokens in *samples*."""
+    words: list[str] = []
+    for s in samples:
+        for w in re.findall(r"\b[a-z][a-z0-9_-]{2,}\b", s.lower()):
+            if w not in _STOP:
+                words.append(w)
+    if not words:
+        return "misc"
+    top = [w for w, _ in Counter(words).most_common(3)]
+    return " ".join(top[:2])
+
+
+# ---------------------------------------------------------------------------
+# LLM labelling (Anthropic only — GitHub Models removed)
+# ---------------------------------------------------------------------------
+def _label_cluster(samples: list[str], kind: str, model: str) -> str:
+    """Call Claude to produce a 2-4-word topic label.
+
+    Falls back to the heuristic label if the API call fails, so the UI
+    never shows 'misc (label failed: …)'.
+    """
     sys = (
         "You name clusters of vLLM "
         + ("pull request" if kind == "pr" else "GitHub issue")
         + " titles. Output one short topic label of 2-4 words, no quotes, "
         "no period. Focus on the concrete technical theme — kernels, attention, "
         "quantization, parallelism, hardware backend, model family, etc. "
-        "If the cluster is incoherent, output 'misc'."
+        "If the cluster is truly incoherent, output 'misc'."
     )
     user = "Titles in this cluster:\n" + "\n".join(f"- {t}" for t in samples)
     try:
-        if backend == "anthropic":
-            return _call_anthropic(sys, user, model).strip().splitlines()[0][:60]
-        return _call_github_models(sys, user, model).strip().splitlines()[0][:60]
+        return _call_anthropic(sys, user, model).strip().splitlines()[0][:60]
     except Exception as e:  # noqa: BLE001
-        return f"misc (label failed: {type(e).__name__})"
+        fallback = _heuristic_label(samples)
+        print(f"  label_cluster: Anthropic call failed ({type(e).__name__}); "
+              f"using heuristic '{fallback}'")
+        return fallback
 
 
 # ---------------------------------------------------------------------------
@@ -331,7 +363,6 @@ def run_clustering(
     kind: str,
     *,
     k: int | None = None,
-    backend: str | None = None,
     label_model: str | None = None,
     label_samples: int = 6,
 ) -> str:
@@ -367,10 +398,12 @@ def run_clustering(
         for r in conn.execute(f"SELECT number, title FROM {tbl}").fetchall():
             title_lookup[r["number"]] = r["title"] or ""
 
-    backend = backend or ("github" if os.getenv("GITHUB_TOKEN") else "anthropic")
-    label_model = label_model or (
-        "openai/gpt-4o-mini" if backend == "github" else "claude-haiku-4-5"
-    )
+    # Labeling uses Anthropic only. When ANTHROPIC_API_KEY is absent we fall
+    # back to the heuristic labeler so the UI never shows "label failed".
+    use_llm = bool(os.getenv("ANTHROPIC_API_KEY", "").strip())
+    label_model = label_model or "claude-haiku-4-5"
+    if not use_llm:
+        print("  ANTHROPIC_API_KEY not set; cluster labels will use heuristic fallback")
 
     now_iso = datetime.now(timezone.utc).isoformat()
     run_id = f"{kind}-{now_iso[:19].replace(':', '').replace('-', '')}"
@@ -406,11 +439,13 @@ def run_clustering(
             samples = [s for s in (title_lookup.get(eid, "") for eid in samples_ids)
                        if s.strip()]
             if not samples:
-                label = "empty"
+                label = _heuristic_label([])
             elif c in reuse:
                 label = reuse[c]
+            elif use_llm:
+                label = _label_cluster(samples, kind, label_model)
             else:
-                label = _label_cluster(samples, kind, backend, label_model)
+                label = _heuristic_label(samples)
             conn.execute(
                 "INSERT INTO cluster_summary"
                 "(run_id, kind, cluster, label, size, sample_ids, "

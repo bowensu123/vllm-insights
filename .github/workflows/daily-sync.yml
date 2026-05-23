@@ -67,10 +67,11 @@ jobs:
 
       - name: Analyze (links / perf-claims / release-drift / embeddings / clustering)
         env:
-          # Embeddings + clustering default to GitHub Models (uses the same
-          # GITHUB_TOKEN as the rest of the workflow). Setting OPENAI_API_KEY
-          # in repo secrets switches to OpenAI direct for higher rate limits.
+          # Embeddings use GitHub Models (text-embedding-3-small via GITHUB_TOKEN).
+          # Cluster labeling uses Anthropic Claude — set ANTHROPIC_API_KEY in repo
+          # secrets to enable LLM labels; falls back to heuristic labels if absent.
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           vllm-insights analyze --pr-issue-links --perf-claims --release-diff || \
             echo "core analyses failed; continuing"
@@ -79,7 +80,8 @@ jobs:
 
       - name: Weekly themed digest (LLM)
         env:
-          LLM_BACKEND: github
+          LLM_BACKEND: anthropic
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           mkdir -p docs/weekly
           vllm-insights digest --out docs/weekly/latest.md --days 7 --llm
@@ -90,7 +92,8 @@ jobs:
 
       - name: Summarize latest release (LLM, cached)
         env:
-          LLM_BACKEND: github
+          LLM_BACKEND: anthropic
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           vllm-insights summarize-release --tag latest || \
             echo "Release summary failed; continuing"
