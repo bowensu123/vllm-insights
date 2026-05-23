@@ -57,10 +57,7 @@ def render_capability_matrix(db_path: Path, repo: str = "vllm-project/vllm") -> 
         '<section class="capability">',
         '<h2>What vLLM ships, today</h2>',
         '<p class="cap-intro">'
-        'Each row is a file in upstream <code>vllm/</code>. No maturity labels, '
-        'no opinions — only what\'s present in the source tree right now and '
-        'whether anyone has touched it in the last 90 days. Click any feature '
-        'to open the source on GitHub or drill into the recent PRs for it.'
+        'Files present in upstream <code>vllm/</code>, with 90-day PR activity.'
         '</p>',
     ]
 

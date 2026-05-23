@@ -524,28 +524,14 @@ def _render_latest_release(db_path: Path, repo: str) -> str:
         )
 
     return f"""
-<h2>Should you upgrade to {escape(tag)}?</h2>
+<h2>Latest release &mdash; {escape(tag)}</h2>
 <p>
   <a href="{escape(rel_url)}" target="_blank" rel="noopener"><strong>{escape(tag)}</strong></a>
   {escape("— " + name) if name and name != tag else ""}
   <span style="opacity:.7">· published {escape(published)}</span>
 </p>
-<p class="section-lede">
-  The verdict below is generated from the raw release notes by an LLM and answers
-  the only question that matters for an operator: should you upgrade, wait, or
-  skip — and what will break if you do? Treat it as a first pass, not a guarantee;
-  cross-check the linked release notes before rolling to production.
-</p>
 {summary_html}
-<h3>Supported models &mdash; vLLM compatibility focus</h3>
-<p class="models-intro">
-  Everything below is derived from the live upstream registry: arch class
-  names, category buckets (text/multimodal/embedding/&hellip;), counts, and
-  the 90-day PR activity hitting each vendor's <code>model_executor/models/</code>
-  modules. The only curated input is the seven-vendor focus list
-  (Qwen / DeepSeek / MiniMax / GLM + Meta / Google / Microsoft). New entries
-  from {escape(tag)} are highlighted inline.
-</p>
+<h3>Supported models</h3>
 {vendor_html}
 """
 
@@ -605,12 +591,6 @@ def _render_open_issues(db_path: Path) -> str:
     return (
         '<section class="open-issues">'
         '<h2>Open issues worth watching</h2>'
-        '<p class="section-lede">'
-        'Top 20 open issues across labels we care about &mdash; '
-        '<code>release-blocker</code>, <code>regression</code>, '
-        '<code>performance</code>, <code>RFC</code>, hardware bugs. '
-        'Ordered by label priority then last activity.'
-        '</p>'
         f'<ul class="issue-list">{"".join(items)}</ul>'
         '</section>'
     )
@@ -748,12 +728,7 @@ def _render_forks(db_path: Path) -> str:
         )
     return (
         '<section class="forks">'
-        '<h2>Active forks (where independent work lives)</h2>'
-        '<p class="section-lede">'
-        'Forks of vllm-project/vllm carrying commits not yet merged upstream. '
-        'Top-3 fork list also shows a sample of their independent commits — '
-        'a quick read on what downstream patches the community is maintaining.'
-        '</p>'
+        '<h2>Active forks</h2>'
         f'<ul class="fork-list">{"".join(items)}</ul>'
         '</section>'
     )
@@ -795,11 +770,6 @@ def _render_topics(db_path: Path) -> str:
     return (
         '<section class="topics">'
         '<h2>Discovered topics</h2>'
-        '<p class="section-lede">'
-        'K-means clustering on OpenAI embeddings of PR and issue titles+bodies. '
-        'Cluster labels are LLM-generated from each cluster\'s representative '
-        'members — no hand-written categories.'
-        '</p>'
         f'{pr_html}{issue_html}'
         '</section>'
     )
@@ -823,11 +793,6 @@ def _render_issue_hotspots(db_path: Path) -> str:
     return (
         '<section class="hotspots">'
         '<h2>Issue hotspots</h2>'
-        '<p class="section-lede">'
-        'Open issues with the most distinct PRs trying to fix/close/resolve '
-        'them. Derived from <code>Fixes #N</code> patterns parsed out of every '
-        'PR body — what the project is actually grinding on right now.'
-        '</p>'
         f'<ul class="hotspot-list">{"".join(items)}</ul>'
         '</section>'
     )
@@ -860,11 +825,6 @@ def _render_release_drift(db_path: Path) -> str:
         '<section class="drift">'
         f'<h2>Where the code moved: <code>{escape(from_tag)}</code> &rarr; '
         f'<code>{escape(to_tag)}</code></h2>'
-        '<p class="section-lede">'
-        'Top directories by additions + deletions in the diff between adjacent '
-        'releases. Sourced from GitHub <code>/compare</code> and bucketed by '
-        'two-segment path prefix.'
-        '</p>'
         "<table class='drift-table'>"
         "<thead><tr><th>Directory</th><th>Files</th><th>Lines changed</th></tr></thead>"
         f"<tbody>{body}</tbody></table>"
@@ -900,13 +860,7 @@ def _render_benchmarks(db_path: Path) -> str:
     )
     return (
         '<section class="benchmarks">'
-        '<h2>Performance signals (best-effort)</h2>'
-        '<p class="section-lede">'
-        'Scraped from upstream perf workflow artifacts where the artifact '
-        'shape was recognisable JSON or CSV. This is best-effort: when '
-        'upstream changes its artifact format the table empties until the '
-        'parser is updated.'
-        '</p>'
+        '<h2>Performance signals</h2>'
         "<table class='bench-table'>"
         "<thead><tr><th>Workload</th><th>Hardware</th><th>Metric</th>"
         "<th class='num'>Value</th><th>Observed</th></tr></thead>"
@@ -945,15 +899,11 @@ def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
 <header>
   <h1>vLLM Insights</h1>
   <p class="lede">
-    A derived, source-of-truth view of what
-    <a href="{repo_url}">{escape(repo)}</a> actually ships. Supported models,
-    quantization methods, attention backends, parallelism modes, spec-decode,
-    LoRA, and hardware platforms — every row pulled from upstream source. No
-    hand-curated maturity labels, no opinions baked into Python.
+    <a href="{repo_url}">{escape(repo)}</a> &middot; supported models, quantization,
+    attention backends, parallelism, spec-decode, LoRA, hardware platforms.
   </p>
   <p class="audience">
-    Updated {now:%Y-%m-%d %H:%M UTC} · GitHub REST + git-tree scan ·
-    <a href="feed.xml">Atom feed</a>
+    Updated {now:%Y-%m-%d %H:%M UTC} · <a href="feed.xml">Atom feed</a>
   </p>
   <nav style="margin-top:.6rem">
     <a href="features/">Feature index</a>
@@ -972,9 +922,8 @@ def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
 {issues_html}
 {digest_html}
 {activity_html}
-<footer>Generated by vllm-insights. GitHub data cached to SQLite and refreshed
-every 6 hours; capability matrix is curated and reviewed manually; supported-model
-arch pills are mirrored verbatim from upstream <code>vllm/model_executor/models/registry.py</code>.</footer>
+<footer>vllm-insights &middot; refreshed hourly from
+<a href="{repo_url}">{escape(repo)}</a>.</footer>
 </body></html>"""
     out = docs_dir / "index.html"
     out.write_text(body, encoding="utf-8")
