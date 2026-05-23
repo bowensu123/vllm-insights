@@ -57,6 +57,12 @@ from .ui import (
 PAGE_CSS = DESIGN_TOKENS_CSS + COMPONENTS_CSS + """
 /* ----- Section-specific styles (tables, cards, charts) ----- */
 
+/* Sub-panels (merged sections) */
+.sub-panel { }
+.sub-panel + .sub-panel { border-top: 1px solid var(--border-soft); margin-top: 1.75rem; padding-top: 1.5rem; }
+.sub-panel-head { font-size: .72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .1em; color: var(--fg-3); margin: 0 0 .9rem; }
+
 /* Capability cards still use their own table styling */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
          gap: .75rem; margin: 1rem 0; }
@@ -1165,25 +1171,44 @@ def _compute_section_signals(db_path: Path, prs: pd.DataFrame) -> dict:
     }
 
 
+def _sub_panel(title: str, body: str) -> str:
+    """Wrap a renderer's output in a titled sub-panel block."""
+    body = body.strip()
+    if not body:
+        return ""
+    return (
+        f'<div class="sub-panel">'
+        f'<h3 class="sub-panel-head">{escape(title)}</h3>'
+        f'{body}'
+        f'</div>'
+    )
+
+
 def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
                    rel: pd.DataFrame, cm: pd.DataFrame,
                    now: datetime, repo: str, signals: dict
                    ) -> list[tuple[Section, str]]:
-    """Produce the ordered list of (Section, body_html) pairs. Each renderer
-    here returns *body only* — the Section shell adds the title, badge and
-    collapse machinery."""
+    """Produce the ordered list of (Section, body_html) pairs — 7 sections.
+
+    Section map (13 renderers → 7 sections):
+      1. Latest release
+      2. What changed  = perf claims + release drift
+      3. Capability    = what vLLM ships (feature matrix)
+      4. Models        = supported vendor / arch grid
+      5. Trends        = time series + discovered topics + topic momentum
+      6. Community     = social buzz + issue hotspots + open issues
+      7. Deep dive     = forks + activity stats (collapsed)
+    """
     sections: list[tuple[Section, str]] = []
 
-    # Latest release — full notes + verdict details.
-    # Collapsed by default when the verdict is shown in the hero (< 45 days old)
-    # so users aren't confronted with the same content twice.
+    # ── 1. Latest release ────────────────────────────────────────────────────
     rel_body, rel_tag = _render_latest_release(db_path, repo)
     if rel_body:
         hero_shows_verdict = (
             signals["is_new_release"] or
             (signals["rel_age_days"] is not None and signals["rel_age_days"] < 45)
         )
-        rel_sec = Section(
+        sections.append((Section(
             slug="latest-release",
             title="Latest release" + (f" — {rel_tag}" if rel_tag else ""),
             icon="🚀",
@@ -1193,30 +1218,27 @@ def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
                               if signals["rel_age_days"] is not None else ""),
             summary="Full release notes, changelog, and upgrade verdict.",
             default_open=not hero_shows_verdict,
-            empty_state=empty_state(
-                "No release cached yet",
-                "No release data yet."
-            ),
-        )
-        sections.append((rel_sec, rel_body))
+            empty_state=empty_state("No release cached yet", "No release data yet."),
+        ), rel_body))
 
-    # Supported models
-    models_body = _render_supported_models(db_path, repo)
+    # ── 2. What changed ──────────────────────────────────────────────────────
+    pc_kind = "hot" if signals["perf_claim_n"] >= 3 else "neutral"
+    changed_body = (
+        _sub_panel("Performance claims (30d)", _render_perf_claims(db_path)) +
+        _sub_panel("Code movement between releases", _render_release_drift(db_path))
+    )
     sections.append((Section(
-        slug="supported-models",
-        title="Supported models",
-        icon="🧬",
-        badge_kind="neutral",
-        badge_label="",
-        summary="Seven focus vendors and the architectures vLLM ships for each.",
-        empty_state=empty_state(
-            "Not loaded yet",
-            "Will fill in once data is loaded."
-        ),
-    ), models_body))
+        slug="what-changed",
+        title="What changed",
+        icon="⚡",
+        badge_kind=pc_kind,
+        badge_label=(f'{signals["perf_claim_n"]} perf claims'
+                     if signals["perf_claim_n"] else "—"),
+        summary="Author-reported speedups and which parts of the codebase moved.",
+        empty_state=empty_state("Nothing yet", "Will fill in once data is loaded."),
+    ), changed_body))
 
-    # Capability matrix
-    cap_body = render_capability_matrix(db_path, repo)
+    # ── 3. Capability ────────────────────────────────────────────────────────
     sections.append((Section(
         slug="capability",
         title="What vLLM ships",
@@ -1224,172 +1246,82 @@ def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
         badge_kind="neutral",
         badge_label="",
         summary="Quantization, attention, parallelism, spec-decode, LoRA, and hardware platforms.",
-        empty_state=empty_state(
-            "Not loaded yet",
-            "Will fill in once data is loaded."
-        ),
-    ), cap_body))
+        empty_state=empty_state("Not loaded yet", "Will fill in once data is loaded."),
+    ), render_capability_matrix(db_path, repo)))
 
-    # Perf claims
-    pc_body = _render_perf_claims(db_path)
-    pc_kind = "hot" if signals["perf_claim_n"] >= 5 else "neutral"
+    # ── 4. Supported models ──────────────────────────────────────────────────
     sections.append((Section(
-        slug="perf-claims",
-        title="Perf claims by PR authors",
-        icon="⚡",
-        badge_kind=pc_kind,
-        badge_label=f'{signals["perf_claim_n"]} in 30d' if signals["perf_claim_n"] else "no recent claims",
-        summary='Author-reported speedups, with hardware and model tags.',
-        empty_state=empty_state(
-            "Nothing yet",
-            "Will fill in once data is loaded."
-        ),
-    ), pc_body))
+        slug="supported-models",
+        title="Supported models",
+        icon="🧬",
+        badge_kind="neutral",
+        badge_label="",
+        summary="Focus vendors and the architectures vLLM ships for each.",
+        empty_state=empty_state("Not loaded yet", "Will fill in once data is loaded."),
+    ), _render_supported_models(db_path, repo)))
 
-    # Time series
-    ts_body = _render_timeseries(db_path, prs)
+    # ── 5. Trends & Topics ───────────────────────────────────────────────────
+    mo_kind = "hot" if signals["top_ratio"] >= 2.0 else "neutral"
+    trends_body = (
+        _sub_panel("Growth over time", _render_timeseries(db_path, prs)) +
+        _sub_panel("Discovered topics", _render_topics(db_path)) +
+        _sub_panel("Topic momentum", _render_topic_momentum(db_path))
+    )
     sections.append((Section(
         slug="trends",
-        title="Growth over time",
+        title="Trends & Topics",
         icon="📈",
-        badge_kind="neutral",
-        badge_label="",
-        summary="Architectures, quant methods, attention backends and MoE share across releases.",
-        empty_state=empty_state(
-            "Not loaded yet",
-            "Will fill in once enough history is available."
-        ),
-    ), ts_body))
-
-    # Topics
-    topics_body = _render_topics(db_path)
-    sections.append((Section(
-        slug="topics",
-        title="Discovered topics",
-        icon="🧠",
-        badge_kind="neutral",
-        badge_label="",
-        summary="Auto-discovered PR and issue themes.",
-        empty_state=empty_state(
-            "Topics still building",
-            progress_bar("Progress", *_backfill_progress(db_path)) +
-            "<p class='footnote' style='margin-top:.6rem'>This section fills "
-            "in once enough data has been processed.</p>"
-        ),
-    ), topics_body))
-
-    # Topic momentum
-    mo_body = _render_topic_momentum(db_path)
-    mo_kind = "hot" if signals["top_ratio"] >= 2.0 else "neutral"
-    sections.append((Section(
-        slug="momentum",
-        title="Topic momentum",
-        icon="🌡️",
         badge_kind=mo_kind,
-        badge_label=(f'{signals["top_growing"]} +{signals["top_ratio"]:.1f}×'
-                    if signals["top_growing"]
-                    else "stable"),
-        summary="What's heating up — 30-day vs prior 30-day activity per topic.",
+        badge_label=(f'{signals["top_growing"]} trending'
+                     if signals["top_growing"] else "stable"),
+        summary="Activity trends, auto-discovered PR/issue themes, and what's heating up.",
         empty_state=empty_state(
-            "Not ready yet",
-            "Lights up alongside Discovered topics above."
+            "Still building",
+            progress_bar("Embedding progress", *_backfill_progress(db_path)) +
+            "<p class='footnote' style='margin-top:.5rem'>Fills in once embeddings complete.</p>",
         ),
-    ), mo_body))
+    ), trends_body))
 
-    # Drift
-    drift_body = _render_release_drift(db_path)
+    # ── 6. Community ─────────────────────────────────────────────────────────
+    soc_kind = ("hot" if signals["top_react"] >= 10 or signals["hn_n"] >= 3
+                else "watch" if signals["watch_n"] >= 1
+                else "neutral")
+    soc_label = (f'★{signals["top_react"]} reactions'
+                 if signals["top_react"] >= 5
+                 else f'{signals["watch_n"]} open issues'
+                 if signals["watch_n"] else "—")
+    community_body = (
+        _sub_panel("Buzz & reactions", _render_social(db_path)) +
+        _sub_panel("Issue hotspots", _render_issue_hotspots(db_path)) +
+        _sub_panel("Open issues worth watching", _render_open_issues(db_path))
+    )
     sections.append((Section(
-        slug="drift",
-        title="Where the code moved",
-        icon="🗺️",
-        badge_kind="neutral",
-        badge_label="",
-        summary="Top directories changed between adjacent releases.",
-        empty_state=empty_state(
-            "Not loaded yet",
-            "Will fill in once data is loaded."
-        ),
-    ), drift_body))
-
-    # Social
-    soc_body = _render_social(db_path)
-    soc_kind = "hot" if signals["top_react"] >= 10 or signals["hn_n"] >= 3 else "neutral"
-    sections.append((Section(
-        slug="social",
-        title="Community temperature",
+        slug="community",
+        title="Community",
         icon="🔥",
         badge_kind=soc_kind,
-        badge_label=(f'PR ★{signals["top_react"]} / HN {signals["hn_n"]}'
-                    if signals["top_react"] or signals["hn_n"] else "quiet"),
-        summary="Most-reacted PRs and recent Hacker News mentions.",
-        empty_state=empty_state(
-            "Nothing yet",
-            "Will fill in once data is loaded."
-        ),
-    ), soc_body))
+        badge_label=soc_label,
+        summary="Most-reacted PRs, Hacker News mentions, and open issues to watch.",
+        empty_state=empty_state("Nothing yet", "Will fill in once data is loaded."),
+    ), community_body))
 
-    # Hotspots
-    hot_body = _render_issue_hotspots(db_path)
-    hot_kind = "watch" if signals["watch_n"] >= 1 else "neutral"
+    # ── 7. Deep dive (collapsed) ─────────────────────────────────────────────
+    fk_label = (f'top fork +{signals["fork_ahead_max"]} commits'
+                if signals["fork_ahead_max"] else "—")
+    deep_body = (
+        _sub_panel("Active forks", _render_forks(db_path)) +
+        _sub_panel("Repo activity stats", _render_activity(rel, prs, cm, now))
+    )
     sections.append((Section(
-        slug="hotspots",
-        title="Issue hotspots",
-        icon="🎯",
-        badge_kind=hot_kind,
-        badge_label=f'{signals["watch_n"]} watch' if signals["watch_n"] else "clean",
-        summary="Open issues being targeted by the most PRs.",
-        empty_state=empty_state(
-            "Nothing yet",
-            "Will fill in once data is loaded."
-        ),
-    ), hot_body))
-
-    # Forks
-    forks_body = _render_forks(db_path)
-    fk_kind = "hot" if signals["fork_ahead_max"] >= 50 else "neutral"
-    sections.append((Section(
-        slug="forks",
-        title="Active forks",
-        icon="🌿",
-        badge_kind=fk_kind,
-        badge_label=(f'top fork +{signals["fork_ahead_max"]} commits'
-                    if signals["fork_ahead_max"] else "no diverged forks"),
-        summary="Forks carrying commits not yet merged upstream.",
-        empty_state=empty_state(
-            "Nothing yet",
-            "Will fill in once data is loaded."
-        ),
-        default_open=False,
-    ), forks_body))
-
-    # Open issues
-    issues_body = _render_open_issues(db_path)
-    issues_kind = "watch" if signals["watch_n"] >= 1 else "neutral"
-    sections.append((Section(
-        slug="open-issues",
-        title="Open issues worth watching",
-        icon="📋",
-        badge_kind=issues_kind,
-        badge_label=f'{signals["watch_n"]} open' if signals["watch_n"] else "—",
-        summary="Top open performance, regression, RFC, and hardware issues.",
-        empty_state=empty_state(
-            "Nothing yet",
-            "Will fill in once data is loaded."
-        ),
-        default_open=False,
-    ), issues_body))
-
-    # Activity stats — kept but always closed
-    act_body = _render_activity(rel, prs, cm, now)
-    sections.append((Section(
-        slug="activity",
-        title="Repo activity stats",
+        slug="deep-dive",
+        title="Deep dive",
         icon="📊",
-        badge_kind="neutral",
-        badge_label="",
-        summary="Release cadence, PR throughput, top committers.",
+        badge_kind="hot" if signals["fork_ahead_max"] >= 50 else "neutral",
+        badge_label=fk_label,
+        summary="Diverged forks, commit cadence, and contributor stats.",
         default_open=False,
-    ), act_body))
+        empty_state=empty_state("Nothing yet", "Will fill in once data is loaded."),
+    ), deep_body))
 
     return sections
 
@@ -1406,10 +1338,10 @@ def _render_topbar(repo_url: str) -> str:
             aria-expanded="false">☰</button>
     <nav class="topnav" aria-label="Sections">
       <a href="#latest-release">Release</a>
+      <a href="#what-changed">Changed</a>
       <a href="#capability">Capability</a>
       <a href="#trends">Trends</a>
-      <a href="#topics">Topics</a>
-      <a href="#social">Community</a>
+      <a href="#community">Community</a>
       <a href="features/">Features</a>
       <a href="weekly/">Weekly</a>
       <a href="about.html">About</a>
