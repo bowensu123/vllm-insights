@@ -19,6 +19,10 @@ import pandas as pd
 import plotly.express as px
 import plotly.io as pio
 
+from .analysis.pr_issue_links import top_issue_hotspots
+from .analysis.release_diff import latest_pair, load_drift_for_pair
+from .analysis.topics import load_top_clusters
+from .analysis.benchmarks import load_recent_benchmarks
 from .analyzer.queries import (
     releases_df, prs_df, commits_df, classify_pr_by_title, merge_time_stats,
 )
@@ -144,6 +148,70 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #ddd3;
 .digest-pointer:hover { background: rgba(102,204,255,.08); border-color: #6cf8; }
 .digest-pointer h3 { margin: 0 0 .25rem; font-size: 1rem; }
 .digest-pointer p { margin: 0; font-size: .85rem; opacity: .75; }
+
+/* Forks */
+section.forks { margin: 2rem 0 1rem; }
+ul.fork-list { list-style: none; padding: 0; }
+ul.fork-list > li { padding: .55rem 0; border-bottom: 1px solid #ddd3; font-size: .9rem; }
+ul.fork-list > li:last-child { border-bottom: 0; }
+.fork-meta { font-size: .72rem; opacity: .65; margin-left: .4rem; }
+ul.fork-commits { margin: .35rem 0 .1rem 1rem; padding-left: .8rem;
+    border-left: 2px solid #6cf4; font-size: .78rem; }
+ul.fork-commits li { padding: .15rem 0; opacity: .85; }
+ul.fork-commits code { font-size: .72rem; opacity: .9; }
+.fork-c-meta { opacity: .55; font-size: .68rem; }
+
+/* Discovered topics */
+section.topics { margin: 2rem 0 1rem; }
+section.topics h3 { margin-top: 1rem; font-size: .95rem; opacity: .8;
+    text-transform: uppercase; letter-spacing: .05em; }
+.topic-grid { display: flex; flex-wrap: wrap; gap: .4rem; margin: .4rem 0 .8rem; }
+.topic-pill { padding: .35rem .7rem; border-radius: 12px;
+    border: 1px solid #6cf6; background: rgba(102,204,255,.07);
+    display: flex; flex-direction: column; gap: .1rem; min-width: 110px; }
+.topic-label { font-size: .82rem; font-weight: 600; }
+.topic-size { font-size: .68rem; opacity: .7; }
+
+/* Issue hotspots */
+section.hotspots { margin: 2rem 0 1rem; }
+ul.hotspot-list { list-style: none; padding: 0; }
+ul.hotspot-list li { padding: .35rem 0; border-bottom: 1px solid #ddd3;
+    font-size: .88rem; }
+ul.hotspot-list a { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    text-decoration: none; opacity: .85; }
+ul.hotspot-list a:hover { opacity: 1; text-decoration: underline; }
+.hot-count { font-size: .7rem; opacity: .7; margin-left: .4rem;
+    padding: .02rem .35rem; border-radius: 4px;
+    background: rgba(255,170,40,.12); border: 1px solid #b8862b66;
+    color: #b8862b; }
+
+/* Release drift */
+section.drift { margin: 2rem 0 1rem; }
+table.drift-table { border-collapse: collapse; width: 100%; font-size: .85rem;
+    margin-top: .4rem; }
+table.drift-table th, table.drift-table td {
+    padding: .35rem .55rem; border-bottom: 1px solid #ddd3;
+    text-align: left; vertical-align: middle;
+}
+table.drift-table th { font-size: .72rem; text-transform: uppercase;
+    letter-spacing: .04em; opacity: .8; }
+table.drift-table td.dir code { font-size: .78rem; }
+table.drift-table td.files { width: 5rem; text-align: right; opacity: .8; }
+table.drift-table td.changes { font-size: .78rem; position: relative; }
+.changes-bar { height: 3px; background: linear-gradient(90deg, #6c9 0%, #b85 100%);
+    margin-top: .25rem; border-radius: 2px; }
+
+/* Benchmarks */
+section.benchmarks { margin: 2rem 0 1rem; }
+table.bench-table { border-collapse: collapse; width: 100%; font-size: .82rem;
+    margin-top: .4rem; }
+table.bench-table th, table.bench-table td {
+    padding: .3rem .5rem; border-bottom: 1px solid #ddd3; text-align: left;
+}
+table.bench-table th.num, table.bench-table td.num { text-align: right;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+table.bench-table td.obs { font-size: .72rem; opacity: .7;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
 /* Open issues block */
 section.open-issues { margin: 2rem 0 1rem; }
@@ -630,6 +698,223 @@ def _render_activity(rel: pd.DataFrame, prs: pd.DataFrame, cm: pd.DataFrame,
     )
 
 
+def _render_forks(db_path: Path) -> str:
+    """Top forks by ahead_by (the ones carrying actual independent work)."""
+    with connect(db_path) as conn:
+        any_row = conn.execute("SELECT 1 FROM forks LIMIT 1").fetchone()
+        if not any_row:
+            return ""
+        rows = conn.execute(
+            """SELECT full_name, stars, ahead_by, behind_by, pushed_at, url
+               FROM forks WHERE ahead_by > 0
+               ORDER BY ahead_by DESC LIMIT 12"""
+        ).fetchall()
+        if not rows:
+            return ""
+        # Pull sample commits for the top 3 forks
+        sample_commits: dict[str, list[dict]] = {}
+        for r in rows[:3]:
+            commits = conn.execute(
+                """SELECT sha, message, author, committed_at, url
+                   FROM fork_commits WHERE fork_full_name = ?
+                   ORDER BY committed_at DESC LIMIT 5""",
+                (r["full_name"],),
+            ).fetchall()
+            sample_commits[r["full_name"]] = [dict(c) for c in commits]
+
+    items = []
+    for r in rows:
+        commits_html = ""
+        if sample_commits.get(r["full_name"]):
+            cs = "".join(
+                f"<li><a href='{escape(c['url'] or '')}' target='_blank' rel='noopener'>"
+                f"<code>{escape((c['sha'] or '')[:7])}</code></a> "
+                f"{escape((c['message'] or '')[:120])}"
+                f"<span class='fork-c-meta'> &middot; @{escape(c['author'] or '?')}</span></li>"
+                for c in sample_commits[r["full_name"]]
+            )
+            commits_html = f"<ul class='fork-commits'>{cs}</ul>"
+        last_push = (r["pushed_at"] or "")[:10]
+        items.append(
+            "<li>"
+            f"<a href='{escape(r['url'] or '')}' target='_blank' rel='noopener'>"
+            f"<strong>{escape(r['full_name'])}</strong></a> "
+            f"<span class='fork-meta'>"
+            f"{r['stars']}★ · ahead {r['ahead_by']} / behind {r['behind_by']} · "
+            f"last push {escape(last_push)}"
+            f"</span>"
+            f"{commits_html}"
+            "</li>"
+        )
+    return (
+        '<section class="forks">'
+        '<h2>Active forks (where independent work lives)</h2>'
+        '<p class="section-lede">'
+        'Forks of vllm-project/vllm carrying commits not yet merged upstream. '
+        'Top-3 fork list also shows a sample of their independent commits — '
+        'a quick read on what downstream patches the community is maintaining.'
+        '</p>'
+        f'<ul class="fork-list">{"".join(items)}</ul>'
+        '</section>'
+    )
+
+
+def _render_topics(db_path: Path) -> str:
+    """Top discovered PR topics from the most recent clustering run."""
+    pr_top = load_top_clusters(db_path, "pr", top=12)
+    issue_top = load_top_clusters(db_path, "issue", top=8)
+    if not pr_top and not issue_top:
+        return ""
+
+    pr_html = ""
+    if pr_top:
+        pr_html = (
+            "<h3>PR topics</h3><div class='topic-grid'>"
+            + "".join(
+                f"<div class='topic-pill'>"
+                f"<span class='topic-label'>{escape(t['label'])}</span>"
+                f"<span class='topic-size'>{t['size']} PRs</span>"
+                f"</div>"
+                for t in pr_top
+            )
+            + "</div>"
+        )
+    issue_html = ""
+    if issue_top:
+        issue_html = (
+            "<h3>Issue topics</h3><div class='topic-grid'>"
+            + "".join(
+                f"<div class='topic-pill'>"
+                f"<span class='topic-label'>{escape(t['label'])}</span>"
+                f"<span class='topic-size'>{t['size']} issues</span>"
+                f"</div>"
+                for t in issue_top
+            )
+            + "</div>"
+        )
+    return (
+        '<section class="topics">'
+        '<h2>Discovered topics</h2>'
+        '<p class="section-lede">'
+        'K-means clustering on OpenAI embeddings of PR and issue titles+bodies. '
+        'Cluster labels are LLM-generated from each cluster\'s representative '
+        'members — no hand-written categories.'
+        '</p>'
+        f'{pr_html}{issue_html}'
+        '</section>'
+    )
+
+
+def _render_issue_hotspots(db_path: Path) -> str:
+    """Open issues most frequently referenced by Fixes/Closes/Resolves PRs."""
+    rows = top_issue_hotspots(db_path, limit=12, only_open=True)
+    if not rows:
+        return ""
+    items = []
+    for r in rows:
+        items.append(
+            f"<li>"
+            f"<a href='{escape(r['url'] or '')}' target='_blank' rel='noopener'>"
+            f"#{r['number']}</a> {escape(r['title'])} "
+            f"<span class='hot-count'>{r['pr_count']} PR{'s' if r['pr_count'] != 1 else ''} "
+            f"linked</span>"
+            f"</li>"
+        )
+    return (
+        '<section class="hotspots">'
+        '<h2>Issue hotspots</h2>'
+        '<p class="section-lede">'
+        'Open issues with the most distinct PRs trying to fix/close/resolve '
+        'them. Derived from <code>Fixes #N</code> patterns parsed out of every '
+        'PR body — what the project is actually grinding on right now.'
+        '</p>'
+        f'<ul class="hotspot-list">{"".join(items)}</ul>'
+        '</section>'
+    )
+
+
+def _render_release_drift(db_path: Path) -> str:
+    """Drift heatmap-table for the most recent release pair."""
+    pair = latest_pair(db_path)
+    if not pair:
+        return ""
+    from_tag, to_tag = pair
+    rows = load_drift_for_pair(db_path, from_tag, to_tag, top=15)
+    if not rows:
+        return ""
+    # Render a simple table; the magnitude column uses a bar to draw the eye.
+    max_changes = max((r["additions"] + r["deletions"]) for r in rows) or 1
+    body = "".join(
+        f"<tr>"
+        f"<td class='dir'><code>{escape(r['dir'])}</code></td>"
+        f"<td class='files'>{r['files']}</td>"
+        f"<td class='changes'>"
+        f"+{r['additions']} / -{r['deletions']}"
+        f"<div class='changes-bar' style='width:"
+        f"{((r['additions'] + r['deletions']) / max_changes * 100):.0f}%'></div>"
+        f"</td>"
+        f"</tr>"
+        for r in rows
+    )
+    return (
+        '<section class="drift">'
+        f'<h2>Where the code moved: <code>{escape(from_tag)}</code> &rarr; '
+        f'<code>{escape(to_tag)}</code></h2>'
+        '<p class="section-lede">'
+        'Top directories by additions + deletions in the diff between adjacent '
+        'releases. Sourced from GitHub <code>/compare</code> and bucketed by '
+        'two-segment path prefix.'
+        '</p>'
+        "<table class='drift-table'>"
+        "<thead><tr><th>Directory</th><th>Files</th><th>Lines changed</th></tr></thead>"
+        f"<tbody>{body}</tbody></table>"
+        '</section>'
+    )
+
+
+def _render_benchmarks(db_path: Path) -> str:
+    """Recent benchmark observations, if we managed to scrape any."""
+    rows = load_recent_benchmarks(db_path, limit=80)
+    if not rows:
+        return ""
+    # Group by (workload, metric, hardware); show latest value
+    by_key: dict[tuple[str, str, str], dict] = {}
+    for r in rows:
+        key = (r["workload"], r["metric"], r["hardware"])
+        prev = by_key.get(key)
+        if not prev or r["observed_at"] > prev["observed_at"]:
+            by_key[key] = r
+    items = sorted(by_key.values(),
+                   key=lambda r: (r["workload"], r["metric"], r["hardware"]))[:30]
+    if not items:
+        return ""
+    body = "".join(
+        f"<tr>"
+        f"<td><code>{escape(r['workload'])}</code></td>"
+        f"<td><code>{escape(r['hardware'])}</code></td>"
+        f"<td>{escape(r['metric'])}</td>"
+        f"<td class='num'>{r['value']:.2f}</td>"
+        f"<td class='obs'>{escape((r['observed_at'] or '')[:10])}</td>"
+        f"</tr>"
+        for r in items
+    )
+    return (
+        '<section class="benchmarks">'
+        '<h2>Performance signals (best-effort)</h2>'
+        '<p class="section-lede">'
+        'Scraped from upstream perf workflow artifacts where the artifact '
+        'shape was recognisable JSON or CSV. This is best-effort: when '
+        'upstream changes its artifact format the table empties until the '
+        'parser is updated.'
+        '</p>'
+        "<table class='bench-table'>"
+        "<thead><tr><th>Workload</th><th>Hardware</th><th>Metric</th>"
+        "<th class='num'>Value</th><th>Observed</th></tr></thead>"
+        f"<tbody>{body}</tbody></table>"
+        '</section>'
+    )
+
+
 def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
     docs_dir.mkdir(parents=True, exist_ok=True)
     rel = releases_df(db_path)
@@ -639,6 +924,11 @@ def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
 
     latest_html = _render_latest_release(db_path, repo)
     capability_html = render_capability_matrix(db_path, repo)
+    topics_html = _render_topics(db_path)
+    drift_html = _render_release_drift(db_path)
+    benchmarks_html = _render_benchmarks(db_path)
+    hotspots_html = _render_issue_hotspots(db_path)
+    forks_html = _render_forks(db_path)
     issues_html = _render_open_issues(db_path)
     digest_html = _render_digest_pointer(docs_dir)
     activity_html = _render_activity(rel, prs, cm, now)
@@ -674,6 +964,11 @@ def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
 </header>
 {latest_html}
 {capability_html}
+{benchmarks_html}
+{topics_html}
+{drift_html}
+{hotspots_html}
+{forks_html}
 {issues_html}
 {digest_html}
 {activity_html}

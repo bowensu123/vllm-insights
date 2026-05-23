@@ -117,3 +117,58 @@ class GitHubClient:
                           params={"path": path, "sha": branch, "per_page": 1})
         items = r.json()
         return items[0] if items else None
+
+    def list_forks(self, sort: str = "stargazers") -> Iterator[dict]:
+        """List forks of the configured repo, sorted by star count by default."""
+        yield from self.paginate(f"/repos/{self.repo}/forks", params={"sort": sort})
+
+    def compare(self, base: str, head: str) -> dict:
+        """`base` and `head` are revs like 'main' or 'owner:branch'.
+
+        Returns the full /compare response (incl. ahead_by / behind_by / files /
+        commits). For large diffs the API returns up to 300 files / 250 commits
+        and sets `truncated=True`; callers should treat the lists as a sample.
+        """
+        r = self._request("GET", f"/repos/{self.repo}/compare/{base}...{head}")
+        return r.json()
+
+    def list_workflow_runs(self, workflow_file: str, status: str | None = "success",
+                           branch: str | None = "main") -> Iterator[dict]:
+        """Iterate workflow runs for one specific workflow file (e.g.
+        'perf-benchmarks.yml'). Filters to `status` / `branch` if provided."""
+        params: dict[str, Any] = {}
+        if status:
+            params["status"] = status
+        if branch:
+            params["branch"] = branch
+        for page in self.paginate(
+            f"/repos/{self.repo}/actions/workflows/{workflow_file}/runs",
+            params=params,
+        ):
+            # /runs returns {"workflow_runs":[...]} not a flat list — paginate()
+            # yields that dict; unpack here.
+            if isinstance(page, dict) and "workflow_runs" in page:
+                yield from page["workflow_runs"]
+
+    def list_artifacts(self, run_id: int) -> Iterator[dict]:
+        """List artifacts for one workflow run."""
+        for page in self.paginate(f"/repos/{self.repo}/actions/runs/{run_id}/artifacts"):
+            if isinstance(page, dict) and "artifacts" in page:
+                yield from page["artifacts"]
+
+    def download_artifact(self, artifact_id: int) -> bytes:
+        """Download an artifact zip. The endpoint 302-redirects to a presigned
+        S3 URL; httpx follows redirects by default for GET."""
+        r = self._request("GET", f"/repos/{self.repo}/actions/artifacts/{artifact_id}/zip")
+        return r.content
+
+    def list_workflow_files(self, branch: str = "main") -> list[str]:
+        """Return the file names under .github/workflows/ at `branch`. Used by
+        the perf-benchmark scraper to discover candidate workflows without
+        hardcoding their filenames."""
+        r = self._request("GET", f"/repos/{self.repo}/contents/.github/workflows",
+                          params={"ref": branch})
+        items = r.json()
+        if not isinstance(items, list):
+            return []
+        return [it["name"] for it in items if it.get("type") == "file"]

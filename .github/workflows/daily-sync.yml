@@ -51,12 +51,31 @@ jobs:
           restore-keys: |
             vllm-insights-db-
 
-      - name: Sync (releases / PRs / commits / issues / registry / source-scan)
+      - name: Sync (releases / PRs / commits / issues / forks / registry / source-scan)
         run: |
           if [ "${{ inputs.full }}" = "true" ]; then
             vllm-insights sync --all --full
           else
             vllm-insights sync --all
+          fi
+
+      - name: Analyze (PR↔Issue links, release drift, embeddings, clustering, benchmarks)
+        env:
+          # Optional: embeddings + clustering are skipped if OPENAI_API_KEY is not set.
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          # PR↔Issue link mining + release drift always run (cheap, no extra creds)
+          vllm-insights analyze --pr-issue-links --release-diff || \
+            echo "core analyses failed; continuing"
+          # Benchmarks: best-effort scrape of perf-CI artifacts
+          vllm-insights analyze --benchmarks || \
+            echo "benchmarks scrape failed; continuing"
+          # Embeddings + clustering: skipped silently if OPENAI_API_KEY is not configured
+          if [ -n "${OPENAI_API_KEY}" ]; then
+            vllm-insights analyze --embed --cluster || \
+              echo "embed/cluster failed; continuing"
+          else
+            echo "OPENAI_API_KEY not set; skipping topic clustering"
           fi
 
       - name: Weekly themed digest (LLM)

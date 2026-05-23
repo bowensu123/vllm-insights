@@ -14,8 +14,14 @@ from .fetcher.releases import sync_releases
 from .fetcher.prs import sync_prs
 from .fetcher.commits import sync_commits
 from .fetcher.issues import sync_issues
+from .fetcher.forks import sync_forks
 from .analyzer.queries import releases_df, prs_df, commits_df
 from .analyzer.linking import link_prs_to_releases
+from .analysis.pr_issue_links import sync_pr_issue_links
+from .analysis.release_diff import sync_release_diffs
+from .analysis.embeddings import embed_entities
+from .analysis.topics import run_clustering
+from .analysis.benchmarks import sync_benchmarks
 from .report import generate_weekly_digest
 from .registry_sync import sync_registry
 from .source_scan import sync_source_inventory
@@ -34,6 +40,8 @@ def sync(
     commits: bool = typer.Option(False, "--commits", help="Sync commits (incremental)"),
     issues: bool = typer.Option(False, "--issues",
                                 help="Sync labelled issues (performance / regression / RFC / …)"),
+    forks: bool = typer.Option(False, "--forks",
+                               help="Monitor active forks (ahead/behind + unique commits)"),
     registry: bool = typer.Option(False, "--registry",
                                   help="Mirror upstream vllm/model_executor/models/registry.py"),
     source_scan: bool = typer.Option(False, "--source-scan",
@@ -46,11 +54,11 @@ def sync(
     s = load_settings(require_token=True)
     init_db(s.db_path)
     if all_:
-        releases = prs = commits = issues = registry = source_scan = True
-    if not any((releases, prs, commits, issues, registry, source_scan)):
+        releases = prs = commits = issues = forks = registry = source_scan = True
+    if not any((releases, prs, commits, issues, forks, registry, source_scan)):
         console.print(
             "[yellow]Pick at least one of --releases / --prs / --commits / --issues "
-            "/ --registry / --source-scan / --all[/]"
+            "/ --forks / --registry / --source-scan / --all[/]"
         )
         raise typer.Exit(1)
 
@@ -64,6 +72,8 @@ def sync(
             sync_commits(client, s.db_path, full=full)
         if issues:
             sync_issues(client, s.db_path, full=full)
+        if forks:
+            sync_forks(client, s.db_path)
         if source_scan:
             counts = sync_source_inventory(client, s.db_path)
             total = sum(counts.values())
@@ -79,6 +89,63 @@ def sync(
     # Always re-link PRs to releases (cheap)
     if releases or prs:
         link_prs_to_releases(s.db_path)
+    console.print("[bold green]Done.[/]")
+
+
+@app.command()
+def analyze(
+    pr_issue_links: bool = typer.Option(False, "--pr-issue-links",
+                                        help="Mine Fixes/Closes/Resolves links from PR bodies"),
+    release_diff: bool = typer.Option(False, "--release-diff",
+                                      help="Aggregate release-to-release file drift by directory"),
+    embed: bool = typer.Option(False, "--embed",
+                               help="OpenAI-embed PR + issue titles/bodies (needs OPENAI_API_KEY)"),
+    cluster: bool = typer.Option(False, "--cluster",
+                                 help="K-means topic clustering on embedded entities"),
+    benchmarks: bool = typer.Option(False, "--benchmarks",
+                                    help="Scrape perf-CI artifacts from upstream Actions"),
+    all_: bool = typer.Option(False, "--all", help="Run every analysis"),
+):
+    """Run intelligent analyses over the cached data."""
+    s = load_settings(require_token=True)
+    init_db(s.db_path)
+    if all_:
+        pr_issue_links = release_diff = embed = cluster = benchmarks = True
+    if not any((pr_issue_links, release_diff, embed, cluster, benchmarks)):
+        console.print(
+            "[yellow]Pick at least one of --pr-issue-links / --release-diff / "
+            "--embed / --cluster / --benchmarks / --all[/]"
+        )
+        raise typer.Exit(1)
+
+    if pr_issue_links:
+        sync_pr_issue_links(s.db_path)
+
+    client: GitHubClient | None = None
+    try:
+        if release_diff or benchmarks:
+            client = GitHubClient(s.github_token, s.repo)
+        if release_diff:
+            assert client is not None
+            sync_release_diffs(client, s.db_path)
+        if benchmarks:
+            assert client is not None
+            sync_benchmarks(client, s.db_path)
+    finally:
+        if client is not None:
+            client.close()
+
+    if embed:
+        for kind in ("pr", "issue"):
+            n = embed_entities(s.db_path, kind)
+            console.print(f"[cyan]Embedded {kind}:[/] {n} new vector(s)")
+
+    if cluster:
+        for kind in ("pr", "issue"):
+            rid = run_clustering(s.db_path, kind)
+            if rid:
+                console.print(f"[cyan]Clustered {kind}:[/] run={rid}")
+
     console.print("[bold green]Done.[/]")
 
 

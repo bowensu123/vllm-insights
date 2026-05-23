@@ -17,11 +17,12 @@ def sync_prs(client: GitHubClient, db_path, full: bool = False) -> int:
             state = "MERGED" if pr.get("merged_at") else pr.get("state", "").upper()
             conn.execute(
                 """INSERT INTO pull_requests(number,title,state,author,created_at,merged_at,closed_at,
-                                              additions,deletions,changed_files,labels,url)
-                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                                              additions,deletions,changed_files,labels,url,body)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
                    ON CONFLICT(number) DO UPDATE SET
                      title=excluded.title, state=excluded.state, merged_at=excluded.merged_at,
-                     closed_at=excluded.closed_at, labels=excluded.labels""",
+                     closed_at=excluded.closed_at, labels=excluded.labels,
+                     body=excluded.body""",
                 (
                     pr["number"],
                     pr.get("title"),
@@ -35,6 +36,7 @@ def sync_prs(client: GitHubClient, db_path, full: bool = False) -> int:
                     pr.get("changed_files"),
                     labels,
                     pr.get("html_url"),
+                    pr.get("body") or "",
                 ),
             )
             count += 1
