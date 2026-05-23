@@ -61,19 +61,15 @@ jobs:
 
       - name: Analyze (links / perf-claims / release-drift / embeddings / clustering)
         env:
-          # Optional: embeddings + clustering are skipped if OPENAI_API_KEY is not set.
+          # Embeddings + clustering default to GitHub Models (uses the same
+          # GITHUB_TOKEN as the rest of the workflow). Setting OPENAI_API_KEY
+          # in repo secrets switches to OpenAI direct for higher rate limits.
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          # Cheap, no extra creds: PR↔Issue links, perf-claim extraction, release drift
           vllm-insights analyze --pr-issue-links --perf-claims --release-diff || \
             echo "core analyses failed; continuing"
-          # Embeddings + clustering: skipped silently if OPENAI_API_KEY is not configured
-          if [ -n "${OPENAI_API_KEY}" ]; then
-            vllm-insights analyze --embed --cluster || \
-              echo "embed/cluster failed; continuing"
-          else
-            echo "OPENAI_API_KEY not set; skipping topic clustering"
-          fi
+          vllm-insights analyze --embed --cluster || \
+            echo "embed/cluster failed; continuing"
 
       - name: Weekly themed digest (LLM)
         env:
