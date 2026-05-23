@@ -266,8 +266,9 @@ COMPONENTS_CSS = """
 /* Body shell */
 html, body { background: var(--bg); color: var(--fg); }
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
-       "Helvetica Neue", Arial, sans-serif; line-height: 1.55;
-       margin: 0; padding: 0; font-size: 16px; }
+       "Helvetica Neue", Arial, sans-serif; line-height: 1.65;
+       margin: 0; padding: 0; font-size: 16px;
+       text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 code { font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
@@ -374,28 +375,56 @@ code { font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Conso
     background: var(--accent-soft); }
 
 /* Two-column layout */
-.layout { display: grid; grid-template-columns: 200px 1fr; gap: var(--s-4); }
+.layout { display: grid; grid-template-columns: 210px 1fr; gap: var(--s-5); }
 @media (max-width: 980px) { .layout { grid-template-columns: 1fr; }
     .toc { display: none; } }
 
 /* Section shell */
 .sec { margin: 0 0 var(--s-4); }
-.sec-d { background: var(--bg-2); border: 1px solid var(--border-soft);
+.sec-d {
+    background: var(--bg-2); border: 1px solid var(--border-soft);
     border-radius: var(--r-lg); padding: var(--s-3) var(--s-4) var(--s-4);
-    box-shadow: var(--shadow-1); }
-.sec-head { cursor: pointer; list-style: none;
-    display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.6rem;
-    padding: 0; user-select: none; }
+    box-shadow: var(--shadow-1);
+    transition: box-shadow 180ms ease, border-color 180ms ease;
+}
+.sec-d:hover { box-shadow: var(--shadow-2); border-color: var(--border); }
+
+/* Section summary element: grid — title top-left, description bottom-left, chevron right */
+.sec-head {
+    cursor: pointer; list-style: none; padding: 0; user-select: none;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "title toggle" "desc  toggle";
+    align-items: center;
+    gap: 0 var(--s-2);
+}
 .sec-head::-webkit-details-marker { display: none; }
-.sec-title { font-size: var(--t-lg); margin: 0; font-weight: 600;
-    letter-spacing: -0.005em; }
-.sec-icon { margin-right: 0.2rem; }
-.sec-summary { font-size: var(--t-sm); color: var(--fg-3); flex: 1; min-width: 0;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sec-toggle { color: var(--fg-3); font-size: var(--t-md); transition: transform 200ms; }
+.sec-title {
+    grid-area: title;
+    font-size: 1.08rem; margin: 0; font-weight: 700; letter-spacing: -0.01em;
+    display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;
+}
+.sec-icon { font-size: 1em; line-height: 1; }
+.sec-summary {
+    grid-area: desc;
+    font-size: var(--t-sm); color: var(--fg-3);
+    margin-top: 0.15rem; line-height: 1.4;
+}
+/* Hide the description when the section is already open — no need to repeat it */
+details[open] > summary .sec-summary { display: none; }
+.sec-toggle {
+    grid-area: toggle;
+    color: var(--fg-3); font-size: 1rem;
+    transition: transform 200ms ease; align-self: start; margin-top: 0.15rem;
+}
 .sec-toggle::after { content: '▾'; }
-details[open] .sec-toggle { transform: rotate(180deg); }
-.sec-body { padding-top: var(--s-3); }
+details[open] > .sec-head .sec-toggle,
+details[open] > summary.sec-head .sec-toggle { transform: rotate(180deg); }
+.sec-body {
+    margin-top: var(--s-2);
+    padding-top: var(--s-3);
+    border-top: 1px solid var(--border-soft);
+}
 .sec-empty { padding: var(--s-3); color: var(--fg-3); font-size: var(--t-sm);
     background: var(--bg-3); border-radius: var(--r-md); }
 
@@ -425,6 +454,9 @@ details[open] .sec-toggle { transform: rotate(180deg); }
 .b-watch   { color: var(--watch);   background: var(--watch-bg); }
 .b-derived { color: var(--derived); background: var(--derived-bg); }
 .b-neutral { color: var(--fg-2);    background: var(--bg-3); }
+
+/* Utility */
+.footnote { font-size: var(--t-xs); color: var(--fg-3); line-height: 1.5; }
 
 /* Footer */
 footer.foot { margin-top: var(--s-7); padding-top: var(--s-3);

@@ -59,9 +59,14 @@ PAGE_CSS = DESIGN_TOKENS_CSS + COMPONENTS_CSS + """
 
 /* Sub-panels (merged sections) */
 .sub-panel { }
-.sub-panel + .sub-panel { border-top: 1px solid var(--border-soft); margin-top: 1.75rem; padding-top: 1.5rem; }
-.sub-panel-head { font-size: .72rem; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .1em; color: var(--fg-3); margin: 0 0 .9rem; }
+.sub-panel + .sub-panel { border-top: 1px solid var(--border-soft); margin-top: 2rem; padding-top: 1.75rem; }
+.sub-panel-head {
+    font-size: .72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .1em; color: var(--fg-3);
+    margin: 0 0 1rem;
+    padding-left: .65rem;
+    border-left: 2px solid var(--accent);
+}
 
 /* Capability cards still use their own table styling */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -146,12 +151,12 @@ PAGE_CSS = DESIGN_TOKENS_CSS + COMPONENTS_CSS + """
 .vc-d { }
 .vc-summary {
   cursor: pointer; list-style: none; user-select: none;
-  display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
-  padding: .15rem 0; }
+  display: flex; align-items: center; gap: .5rem; flex-wrap: nowrap;
+  padding: .15rem 0; min-width: 0; }
 .vc-summary::-webkit-details-marker { display: none; }
 .vc-stats {
   display: flex; gap: .4rem; align-items: center; flex-wrap: wrap;
-  font-size: var(--t-xs); color: var(--fg-3); margin-left: auto; }
+  font-size: var(--t-xs); color: var(--fg-3); margin-left: auto; flex-shrink: 1; min-width: 0; }
 .vc-stat {
   white-space: nowrap; padding: .1rem .35rem; border-radius: 999px;
   border: 1px solid var(--border); background: var(--bg-3); }
