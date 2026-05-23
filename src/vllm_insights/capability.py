@@ -96,8 +96,7 @@ def render_capability_matrix(db_path: Path, repo: str = "vllm-project/vllm") -> 
 
     if not have_any:
         parts.append(
-            '<p style="color:var(--fg-3)"><em>No inventory yet. Run '
-            '<code>vllm-insights sync --source-scan</code> first.</em></p>'
+            '<p style="color:var(--fg-3)"><em>Not loaded yet.</em></p>'
         )
     return "\n".join(parts)
 

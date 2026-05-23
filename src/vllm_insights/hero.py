@@ -177,11 +177,10 @@ def build_status_strip(db_path: Path) -> str:
         emb_hint = "—"
 
     rows = [
-        ("Last sync", last_sync[:16].replace("T", " ") if last_sync else "—", "UTC"),
+        ("Updated", last_sync[:16].replace("T", " ") if last_sync else "—", "UTC"),
         ("Releases", f"{n_releases:,}", None),
-        ("PRs cached", f"{n_prs:,}", None),
-        ("Labelled issues", f"{n_issues:,}", None),
-        ("Live arches", f"{n_arches:,}", None),
-        ("Indexed for topics", emb_hint, "of total PRs"),
+        ("PRs", f"{n_prs:,}", None),
+        ("Issues", f"{n_issues:,}", None),
+        ("Architectures", f"{n_arches:,}", None),
     ]
     return status_strip(rows)

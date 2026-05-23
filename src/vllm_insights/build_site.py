@@ -19,7 +19,7 @@ from .analysis.history import counts_over_time
 from .analysis.perf_claims import recent_claims
 from .analysis.pr_issue_links import top_issue_hotspots
 from .analysis.release_diff import latest_pair, load_drift_for_pair
-from .analysis.social import hottest_recent_prs, recent_hn_mentions, top_hn_mentions
+from .analysis.social import hottest_recent_prs, recent_hn_mentions
 from .analysis.topics import (
     cluster_for_pr, cluster_momentum, load_top_clusters,
 )
@@ -448,8 +448,8 @@ def _render_focus_grid(
 
         registry_meta = (
             f'<div class="registry-meta">'
-            f'{total} live arch{"" if total == 1 else "es"} in vLLM registry'
-            + (f' &middot; {len(removed_archs)} removed' if removed_archs else "")
+            f'{total} architecture{"" if total == 1 else "s"}'
+            + (f' &middot; {len(removed_archs)} dropped' if removed_archs else "")
             + '</div>'
         )
 
@@ -467,17 +467,7 @@ def _render_focus_grid(
             + "</div>"
         )
 
-    footer = ""
-    if last_seen:
-        footer = (
-            f'<p style="font-size:.72rem;opacity:.55;margin:.3rem 0 0">'
-            f'Architecture pills, categories and counts are mirrored from upstream '
-            f'<code>vllm/model_executor/models/registry.py</code> '
-            f'as of {escape(last_seen[:16].replace("T", " "))} UTC. '
-            f'Activity counts come from the merged-PR cache.</p>'
-        )
-
-    return '<div class="vendor-grid">' + "\n".join(cards) + "</div>" + footer
+    return '<div class="vendor-grid">' + "\n".join(cards) + "</div>"
 
 
 def _latest_release_payload(db_path: Path) -> dict | None:
@@ -681,7 +671,7 @@ def _render_activity(rel: pd.DataFrame, prs: pd.DataFrame, cm: pd.DataFrame,
         charts.append(_fig_html(fig, "chart-commits"))
 
     charts_html = '\n'.join(f'<div class="chart">{c}</div>' for c in charts) \
-        or '<p><em>No data yet — run <code>vllm-insights sync --all</code> first.</em></p>'
+        or '<p><em>Not loaded yet.</em></p>'
 
     return (
         '<details class="activity">'
@@ -1042,12 +1032,18 @@ def _compute_section_signals(db_path: Path, prs: pd.DataFrame) -> dict:
             "SELECT COUNT(*) AS n FROM pull_requests "
             "WHERE merged_at IS NOT NULL AND merged_at >= datetime('now','-7 days')"
         ).fetchone()["n"]
-        # Open watch issues
+        # Open issues matching the same label set shown in _render_open_issues
         watch_n = conn.execute(
             "SELECT COUNT(*) AS n FROM issues WHERE state='OPEN' AND ("
             "  labels LIKE '%release-blocker%' OR "
             "  labels LIKE '%regression%' OR "
-            "  labels LIKE '%perf-regression%')"
+            "  labels LIKE '%performance%' OR "
+            "  labels LIKE '%rfc%' OR "
+            "  labels LIKE '%hardware%' OR "
+            "  labels LIKE '%rocm%' OR "
+            "  labels LIKE '%tpu%' OR "
+            "  labels LIKE '%cpu%' OR "
+            "  labels LIKE '%correctness%')"
         ).fetchone()["n"]
         # Most-reacted PR last 7d
         top_react = conn.execute(
@@ -1127,7 +1123,7 @@ def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
             summary="Upgrade verdict for the current release.",
             empty_state=empty_state(
                 "No release cached yet",
-                "Run <code>vllm-insights sync --releases</code> to populate."
+                "No release data yet."
             ),
         )
         sections.append((rel_sec, rel_body))
@@ -1138,12 +1134,12 @@ def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
         slug="supported-models",
         title="Supported models",
         icon="🧬",
-        badge_kind="derived",
-        badge_label="from registry.py",
-        summary="Live mirror of upstream registry.py grouped into 7 focus vendors.",
+        badge_kind="neutral",
+        badge_label="",
+        summary="Seven focus vendors and the architectures vLLM ships for each.",
         empty_state=empty_state(
-            "Registry not yet synced",
-            "<code>vllm-insights sync --registry</code> populates this on the next run."
+            "Not loaded yet",
+            "Will fill in once data is loaded."
         ),
     ), models_body))
 
@@ -1153,12 +1149,12 @@ def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
         slug="capability",
         title="What vLLM ships",
         icon="🛠️",
-        badge_kind="derived",
-        badge_label="from source tree",
-        summary="Every quant / attention / parallel / platform file present in upstream right now.",
+        badge_kind="neutral",
+        badge_label="",
+        summary="Quantization, attention, parallelism, spec-decode, LoRA, and hardware platforms.",
         empty_state=empty_state(
-            "Source inventory not yet built",
-            "Run <code>vllm-insights sync --source-scan</code> to enumerate."
+            "Not loaded yet",
+            "Will fill in once data is loaded."
         ),
     ), cap_body))
 
@@ -1171,10 +1167,10 @@ def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
         icon="⚡",
         badge_kind=pc_kind,
         badge_label=f'{signals["perf_claim_n"]} in 30d' if signals["perf_claim_n"] else "no recent claims",
-        summary='Author-reported deltas extracted from PR titles ("1.5x H100").',
+        summary='Author-reported speedups, with hardware and model tags.',
         empty_state=empty_state(
-            "No perf claims parsed yet",
-            "<code>vllm-insights analyze --perf-claims</code> populates this from PR bodies."
+            "Nothing yet",
+            "Will fill in once data is loaded."
         ),
     ), pc_body))
 
@@ -1184,12 +1180,12 @@ def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
         slug="trends",
         title="Growth over time",
         icon="📈",
-        badge_kind="derived",
-        badge_label="per release",
-        summary="Architectures, quant methods, attention backends and MoE PR share across releases.",
+        badge_kind="neutral",
+        badge_label="",
+        summary="Architectures, quant methods, attention backends and MoE share across releases.",
         empty_state=empty_state(
-            "History not yet built",
-            "Run <code>vllm-insights sync --history</code> to backfill per-release snapshots."
+            "Not loaded yet",
+            "Will fill in once enough history is available."
         ),
     ), ts_body))
 
@@ -1199,14 +1195,14 @@ def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
         slug="topics",
         title="Discovered topics",
         icon="🧠",
-        badge_kind="derived",
-        badge_label="auto-discovered",
-        summary="Auto-clustered PR and issue themes.",
+        badge_kind="neutral",
+        badge_label="",
+        summary="Auto-discovered PR and issue themes.",
         empty_state=empty_state(
             "Topics still building",
-            progress_bar("PRs indexed", *_backfill_progress(db_path)) +
-            "<p class='footnote' style='margin-top:.6rem'>Backfill takes a few days "
-            "to complete. This section fills in once enough PRs are indexed.</p>"
+            progress_bar("Progress", *_backfill_progress(db_path)) +
+            "<p class='footnote' style='margin-top:.6rem'>This section fills "
+            "in once enough data has been processed.</p>"
         ),
     ), topics_body))
 
@@ -1221,10 +1217,10 @@ def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
         badge_label=(f'{signals["top_growing"]} +{signals["top_ratio"]:.1f}×'
                     if signals["top_growing"]
                     else "stable"),
-        summary="30-day vs prior 30-day PR counts per cluster — what's heating up.",
+        summary="What's heating up — 30-day vs prior 30-day activity per topic.",
         empty_state=empty_state(
-            "Waiting for clustering",
-            "Same backfill as Discovered topics above; both light up together."
+            "Not ready yet",
+            "Lights up alongside Discovered topics above."
         ),
     ), mo_body))
 
@@ -1234,12 +1230,12 @@ def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
         slug="drift",
         title="Where the code moved",
         icon="🗺️",
-        badge_kind="derived",
-        badge_label="release diff",
-        summary="Top directories changed between adjacent releases by line count.",
+        badge_kind="neutral",
+        badge_label="",
+        summary="Top directories changed between adjacent releases.",
         empty_state=empty_state(
-            "No release diffs yet",
-            "<code>vllm-insights analyze --release-diff</code> populates this on the next run."
+            "Not loaded yet",
+            "Will fill in once data is loaded."
         ),
     ), drift_body))
 
@@ -1253,10 +1249,10 @@ def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
         badge_kind=soc_kind,
         badge_label=(f'PR ★{signals["top_react"]} / HN {signals["hn_n"]}'
                     if signals["top_react"] or signals["hn_n"] else "quiet"),
-        summary="Most-reacted PRs + recent Hacker News mentions of vLLM.",
+        summary="Most-reacted PRs and recent Hacker News mentions.",
         empty_state=empty_state(
-            "No reactions or HN mentions captured yet",
-            "Reactions come from <code>sync --reactions</code>, HN from <code>sync --hn</code>."
+            "Nothing yet",
+            "Will fill in once data is loaded."
         ),
     ), soc_body))
 
@@ -1269,10 +1265,10 @@ def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
         icon="🎯",
         badge_kind=hot_kind,
         badge_label=f'{signals["watch_n"]} watch' if signals["watch_n"] else "clean",
-        summary="Open issues with the most distinct PRs targeting them.",
+        summary="Open issues being targeted by the most PRs.",
         empty_state=empty_state(
-            "No PR↔issue links parsed yet",
-            "Comes from <code>analyze --pr-issue-links</code> over PR bodies."
+            "Nothing yet",
+            "Will fill in once data is loaded."
         ),
     ), hot_body))
 
@@ -1288,8 +1284,8 @@ def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
                     if signals["fork_ahead_max"] else "no diverged forks"),
         summary="Forks carrying commits not yet merged upstream.",
         empty_state=empty_state(
-            "No forks scanned yet",
-            "<code>vllm-insights sync --forks</code> populates this on the next run."
+            "Nothing yet",
+            "Will fill in once data is loaded."
         ),
         default_open=False,
     ), forks_body))
@@ -1303,23 +1299,23 @@ def _make_sections(db_path: Path, docs_dir: Path, prs: pd.DataFrame,
         icon="📋",
         badge_kind=issues_kind,
         badge_label=f'{signals["watch_n"]} open' if signals["watch_n"] else "—",
-        summary="Top open issues across performance / regression / RFC / hardware labels.",
+        summary="Top open performance, regression, RFC, and hardware issues.",
         empty_state=empty_state(
-            "Issue sync hasn't run yet",
-            "<code>vllm-insights sync --issues</code> pulls only labelled issues."
+            "Nothing yet",
+            "Will fill in once data is loaded."
         ),
         default_open=False,
     ), issues_body))
 
-    # Activity stats (vanity metrics) — kept but always closed
+    # Activity stats — kept but always closed
     act_body = _render_activity(rel, prs, cm, now)
     sections.append((Section(
         slug="activity",
         title="Repo activity stats",
         icon="📊",
         badge_kind="neutral",
-        badge_label="vanity metrics",
-        summary="Release cadence, PR throughput, top committers — generic GitHub-stat charts.",
+        badge_label="",
+        summary="Release cadence, PR throughput, top committers.",
         default_open=False,
     ), act_body))
 
@@ -1571,8 +1567,8 @@ def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
 
     # OpenGraph + Twitter card values
     og_title = "vLLM Insights"
-    og_desc = ("Live derived view of vLLM: supported models, capability matrix, "
-               "release verdicts, perf claims, topic momentum, fork tracking.")
+    og_desc = ("A live view of what vLLM is shipping — supported models, "
+               "capability surface, release verdicts, community signals.")
     og_url = "https://bowensu123.github.io/vllm-insights/"
 
     body = f"""<!DOCTYPE html>
@@ -1607,7 +1603,7 @@ def build_index(db_path: Path, docs_dir: Path, repo: str) -> Path:
     <div>vllm-insights &middot; refreshed hourly &middot;
       tracking <a href="{repo_url}">{escape(repo)}</a></div>
     <div>
-      <a href="about.html">About &amp; methodology</a> &middot;
+      <a href="about.html">About</a> &middot;
       <a href="feed.xml">Atom</a> &middot;
       <a href="features/">Feature index</a>
     </div>

@@ -294,8 +294,7 @@ def build_feature_pages(db_path: Path, docs_dir: Path,
 <div class="feature-meta">
   <div><strong>Source:</strong> <a href="{blob}" target="_blank" rel="noopener">
     <code>{escape(path)}</code></a></div>
-  <div><strong>Last verified:</strong> {escape((row['last_seen_at'] or '')[:10])}</div>
-  <div><strong>PRs touching it (180d):</strong> {len(pr_rows)} ({pr_30d} in last 30d)</div>
+  <div><strong>Recent PRs (180d):</strong> {len(pr_rows)} &middot; <strong>30d:</strong> {pr_30d}</div>
 </div>
 </header>
 {siblings_html}
@@ -352,8 +351,7 @@ def build_feature_pages(db_path: Path, docs_dir: Path,
 <span aria-current="page">Features</span></nav>
 <h1 class="feature-title" style="font-family:inherit">Feature index</h1>
 <p class="feature-sub">Every quantization method, attention backend, parallelism mode,
-hardware platform, LoRA + spec-decode file in upstream vLLM. Discovered by recursive
-git-tree scan — no curation.</p>
+hardware platform, LoRA + spec-decode entry in upstream vLLM.</p>
 </header>
 {''.join(sections)}
 <footer class="foot">
@@ -376,83 +374,24 @@ def _iso_days_ago(days: int) -> str:
 
 _ABOUT_BODY = """
 <h2 id="what">What this is</h2>
-<p>vLLM Insights is a derived view of the
+<p>A live view of what
 <a href="https://github.com/vllm-project/vllm" target="_blank" rel="noopener">vllm-project/vllm</a>
-codebase and community. It exists because the canonical signals — what's
-supported, what's heating up, what just broke, where to read source — live
-across the GitHub repo, the registry file, issues, forks, weekly releases,
-and the Hacker News front page. Stitching them together by hand each week
-is a chore; this site does it on a cron.</p>
-
-<h2 id="how">How each section is sourced</h2>
-<ul>
-<li><strong>Latest release verdict</strong> — synthesized from the raw GitHub
-release notes following a fixed template (verdict / who-should-upgrade /
-likely-to-break / perf and infra). Output is cached per release tag so the
-same words don't get re-rolled every cron.</li>
-<li><strong>Supported models</strong> — mirrored from upstream
-<code>vllm/model_executor/models/registry.py</code> on every cron. Categories
-(text, multimodal, embedding, …) come from the upstream dict names; we don't
-re-bucket. Arch pills that disappear from the registry are kept with a
-strike-through so version drift is visible.</li>
-<li><strong>Capability matrix</strong> — every <code>.py</code> file in
-<code>vllm/{platforms,distributed,lora,v1/attention/backends,
-v1/spec_decode,model_executor/layers/quantization}</code>, discovered via the
-GitHub git-tree API. 90-day PR activity per file is joined from the
-cached PR data.</li>
-<li><strong>Growth over time</strong> — a per-release snapshot of those same
-trees, taken by replaying the tree API at each stable-release tag.</li>
-<li><strong>Perf claims</strong> — regex over PR titles + bodies for
-multipliers / percentages / tok/s, with hardware and model keyword tagging.
-These are author-asserted, not measured.</li>
-<li><strong>Discovered topics &amp; momentum</strong> — PR and issue text is
-indexed into a vector space, then grouped with K-means clustering;
-short topic labels are generated automatically from each cluster's
-representative members.</li>
-<li><strong>Release drift</strong> — GitHub's <code>/compare</code> endpoint
-between adjacent stable releases, bucketed by two-segment directory prefix.</li>
-<li><strong>Community temperature</strong> — PR reaction counts from the
-<code>/issues</code> endpoint (since <code>/pulls</code> doesn't return them
-in list responses) + Hacker News mentions via Algolia (no auth required).</li>
-<li><strong>Issue hotspots</strong> — open issues with the most distinct
-PRs containing a <code>Fixes #N</code> / <code>Closes #N</code> /
-<code>Resolves #N</code> reference, weighted by label priority.</li>
-<li><strong>Active forks</strong> — every fork above 5 stars, sorted by
-<code>ahead_by</code>; top three also list a sample of their unique commits.</li>
-</ul>
-
-<h2 id="caveats">What's curated, what's not</h2>
-<p>The only hand-curated inputs are:</p>
-<ul>
-<li>The seven-vendor focus list for the Supported models grid (Qwen, DeepSeek,
-MiniMax, GLM, Meta, Google, Microsoft) — the regex rules that map an arch class
-back to its vendor live in <code>src/vllm_insights/models.py</code>.</li>
-<li>The label set we pull from the Issues feed (performance, regression, RFC,
-release-blocker, bug:hardware, bug:rocm, bug:tpu, bug:correctness).</li>
-<li>The keyword set for the perf-claim extractor + the hardware / model tag
-regexes that decorate it.</li>
-</ul>
-<p>Everything else — arches, file paths, counts, PR text — is derived. If a
-table on this site looks wrong, click through to the GitHub link in the row;
-it's the source.</p>
+is shipping — supported models, capability surface, release notes, community
+signals — kept up to date roughly every hour.</p>
 
 <h2 id="freshness">How fresh is the data?</h2>
-<p>The pipeline runs once per hour. End-to-end staleness from upstream event to
-homepage is ≤1h 10min (cron + workflow + Pages deploy). Some sections cache
-forever per-tag (release verdicts, release diffs) because the underlying data
-literally cannot change retroactively.</p>
+<p>Refreshed roughly hourly. Worst-case staleness from upstream event to this
+page is about one hour.</p>
 
 <h2 id="subscribe">Following</h2>
-<p>Subscribe via the
-<a href="feed.xml">Atom feed</a> or just watch
-<a href="https://github.com/bowensu123/vllm-insights" target="_blank" rel="noopener">
-this repo</a> on GitHub. The site has no analytics, no cookies, no login.</p>
+<p>Subscribe via the <a href="feed.xml">Atom feed</a>, or watch
+<a href="https://github.com/bowensu123/vllm-insights" target="_blank" rel="noopener">the
+source repo</a> on GitHub. No analytics, no cookies, no login.</p>
 
 <h2 id="bugs">If something looks wrong</h2>
 <p>File an issue on
-<a href="https://github.com/bowensu123/vllm-insights/issues" target="_blank" rel="noopener">
-the source repo</a>. The data pipeline is open; the wrong number is one PR away
-from being right.</p>
+<a href="https://github.com/bowensu123/vllm-insights/issues" target="_blank" rel="noopener">the
+issue tracker</a>.</p>
 """
 
 
@@ -489,15 +428,12 @@ def build_about_page(docs_dir: Path, *, site_owner: str = "bowensu123") -> Path:
 </script>"""
     base_site = _site_base_url(site_owner)
     page_url = f"{base_site}/about.html"
-    desc = ("How vLLM Insights derives every section — supported models from "
-            "registry.py, capability matrix from the git tree, topics from "
-            "embeddings, perf claims from PR text. No curation hidden under "
-            "the hood.")
+    desc = "A live view of what vLLM is shipping. Updated hourly."
     html = f"""<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>About &amp; methodology — vLLM Insights</title>
+<title>About — vLLM Insights</title>
 <meta name="description" content="{escape(desc)}">
 <link rel="canonical" href="{escape(page_url)}">
 <meta property="og:type" content="website">
@@ -519,9 +455,8 @@ article.about code {{ font-size: 0.85em; }}
 <header class="feature-hero">
 <nav class="breadcrumbs"><a href="./">Home</a>
 <span class="sep">/</span><span aria-current="page">About</span></nav>
-<h1 class="feature-title" style="font-family:inherit">About &amp; methodology</h1>
-<p class="feature-sub">How the data on this site is sourced, what's curated, and
-how to follow.</p>
+<h1 class="feature-title" style="font-family:inherit">About</h1>
+<p class="feature-sub">What this site is and how to follow it.</p>
 </header>
 <article class="about">
 {_ABOUT_BODY}

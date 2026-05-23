@@ -157,13 +157,6 @@ def classify_arch(arch_class: str) -> tuple[str, str] | None:
     # spelling we match on.
     for needle, vendor in _ARCH_VENDOR_OVERRIDES.items():
         if arch_class.startswith(needle):
-            tech = VENDOR_TECH.get(vendor)
-            if tech is None:
-                # Best-effort HF org slug from the rule table
-                for _pat, vname, oslug in VENDOR_RULES:
-                    if vname == vendor:
-                        return vendor, oslug
-                return vendor, ""
             for _pat, vname, oslug in VENDOR_RULES:
                 if vname == vendor:
                     return vendor, oslug
