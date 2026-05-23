@@ -4,10 +4,11 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (223)
+## PRs merged this window (224)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43489](https://github.com/vllm-project/vllm/pull/43489) [Docs] Fix stale version number in token_classify.md — @fuergaosi233 → `nan`
 - [#43488](https://github.com/vllm-project/vllm/pull/43488) [Docs] Fix stale version number in token_embed.md — @fuergaosi233 → `nan`
 - [#42787](https://github.com/vllm-project/vllm/pull/42787) [MM] Enable FlashInfer metadata support for Qwen2.5-VL vision attention — @huanghua1994 → `nan`
 - [#43414](https://github.com/vllm-project/vllm/pull/43414) [Bugfix][Frontend] Fix input_audio parsing when uuid is present  — @ffggs → `nan`
@@ -67,7 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43020](https://github.com/vllm-project/vllm/pull/43020) [Bugfix] Make CuMemAllocator free callback stream-aware — @zixi-qi → `nan`
 - [#40841](https://github.com/vllm-project/vllm/pull/40841) [Frontend] DP Supervisor — @yewentao256 → `nan`
 - [#43260](https://github.com/vllm-project/vllm/pull/43260) [Frontend] Add truncation side to OpenAI endpoints — @ruizhang99 → `nan`
-- [#43236](https://github.com/vllm-project/vllm/pull/43236) [ROCm][CI] add warmup to mem_util test before measurement — @divakar-amd → `nan`
-- _…and 163 more_
+- _…and 164 more_
 
 </details>
