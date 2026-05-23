@@ -3,40 +3,36 @@
 _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-project/vllm)_
 
 ## TL;DR
-This week saw significant improvements in model support and performance optimizations, particularly with the introduction of new quantization methods and enhancements to FlashAttention. Notably, support for the Qwen 3.5/3.6 models was added, alongside various bug fixes and performance tweaks across multiple architectures.
+This week saw significant improvements in model support and performance optimizations, particularly with the introduction of new quantization techniques and enhanced support for various architectures. Notable updates include fixes for bugs related to KV connectors and the addition of support for new models like Qwen3.5 and Openvla. Overall, the changes enhance the efficiency and flexibility of the vLLM inference engine.
 
 ## Kernels & attention
-- Added support for `head_dim=512` in FlashInfer's Triton attention backend, enhancing flexibility in model configurations ([#38822](https://github.com/vllm-project/vllm/pull/38822)).
-- Optimized hidden state extraction logic for improved performance ([#37374](https://github.com/vllm-project/vllm/pull/37374)).
-- Introduced a new custom kernel for padded nvfp4 quantization, yielding a 2.4% to 5.7% end-to-end performance improvement ([#42774](https://github.com/vllm-project/vllm/pull/42774)).
+- Added support for `head_dim=512` in the FlashInfer trtllm attention backend, enhancing flexibility for large models ([#38822](https://github.com/vllm-project/vllm/pull/38822)).
+- Optimized hidden state extraction logic for improved performance during inference ([#37374](https://github.com/vllm-project/vllm/pull/37374)).
 
 ## Quantization
-- Enabled FP8 block-scaled quantization on XPU, enhancing quantization capabilities ([#42952](https://github.com/vllm-project/vllm/pull/42952)).
-- Implemented W4A16 NVFP4 fused MoE with mixed-precision dispatch, improving efficiency in model operations ([#42566](https://github.com/vllm-project/vllm/pull/42566)).
-- Added FP8 per-tensor Q scale support to the Triton attention backend, broadening quantization options ([#42080](https://github.com/vllm-project/vllm/pull/42080)).
+- Introduced FP8 block-scaled quantization on XPU, enabling better performance on Intel GPUs ([#42952](https://github.com/vllm-project/vllm/pull/42952)).
+- Implemented W4A16 NVFP4 fused MoE with mixed-precision dispatch, improving quantization efficiency ([#42566](https://github.com/vllm-project/vllm/pull/42566)).
 
 ## Parallelism & scheduling
-- Improved KV connector management by keeping the scheduler alive for delayed KV connector frees, enhancing resource handling ([#43433](https://github.com/vllm-project/vllm/pull/43433)).
-- Introduced a persistent cache for FlashInfer autotuning, aiming to optimize the autotuning process ([#42537](https://github.com/vllm-project/vllm/pull/42537)).
+- Enhanced the KV connector by keeping the scheduler alive for delayed KV connector frees, improving resource management ([#43433](https://github.com/vllm-project/vllm/pull/43433)).
+- Added support for sharing KV cache layers in Model Runner V2, optimizing memory usage during inference ([#35045](https://github.com/vllm-project/vllm/pull/35045)).
 
 ## Model support
-- Added support for Qwen 3.5/3.6 VLM quantized prefix mapping, expanding model compatibility ([#42546](https://github.com/vllm-project/vllm/pull/42546)).
-- Introduced support for the post-norm architecture in EAGLE-3 speculators, enhancing model versatility ([#42764](https://github.com/vllm-project/vllm/pull/42764)).
-- Integrated OpenVLA support, further diversifying the model offerings ([#42654](https://github.com/vllm-project/vllm/pull/42654)).
+- Added support for Qwen3.5/3.6 VLM quantized prefix mapping, expanding model capabilities ([#42546](https://github.com/vllm-project/vllm/pull/42546)).
+- Introduced Openvla support, enhancing multimodal capabilities within the framework ([#42654](https://github.com/vllm-project/vllm/pull/42654)).
 
 ## Hardware
-- Enhanced CPU backend with improved thread utilization and added fused GDN support for the AMX CPU platform, optimizing performance on CPU architectures ([#42666](https://github.com/vllm-project/vllm/pull/42666), [#42707](https://github.com/vllm-project/vllm/pull/42707)).
-- Added MXFP4 W4A16 MoE support for CPU, facilitating advanced model configurations on CPU ([#41922](https://github.com/vllm-project/vllm/pull/41922)).
+- Improved CPU thread utilization and added fused GDN support for the AMX CPU platform, enhancing performance on CPU architectures ([#42666](https://github.com/vllm-project/vllm/pull/42666), [#42707](https://github.com/vllm-project/vllm/pull/42707)).
+- Added MXFP4 W4A16 MoE support for CPU, increasing model compatibility ([#41922](https://github.com/vllm-project/vllm/pull/41922)).
 
 ## API & serving
-- Simplified the authentication middleware path extraction in the frontend, improving API usability ([#43226](https://github.com/vllm-project/vllm/pull/43226)).
-- Added truncation options to OpenAI endpoints, enhancing compatibility with structured outputs ([#43260](https://github.com/vllm-project/vllm/pull/43260)).
+- Simplified the authentication middleware path extraction, improving the API's usability ([#43226](https://github.com/vllm-project/vllm/pull/43226)).
+- Added truncation side to OpenAI endpoints, enhancing compatibility with structured outputs ([#43260](https://github.com/vllm-project/vllm/pull/43260)).
 
 ## Watch list
-- Ongoing discussions around the removal of dead synchronization paths in the accelerator, which may impact performance ([#40733](https://github.com/vllm-project/vllm/pull/40733)).
-- Potential breaking changes flagged in the context of KV connector updates and model runner configurations ([#42111](https://github.com/vllm-project/vllm/pull/42111)).
+- Ongoing discussions around the removal of dead code and optimizations in the KV connector, which may impact future releases ([#40717](https://github.com/vllm-project/vllm/pull/40717), [#42945](https://github.com/vllm-project/vllm/pull/42945)).
 
-## PRs merged this window (221)
+## PRs merged this window (220)
 
 <details><summary>Click to expand the raw list</summary>
 
@@ -100,6 +96,6 @@ This week saw significant improvements in model support and performance optimiza
 - [#43378](https://github.com/vllm-project/vllm/pull/43378) [CI] Fix dockerfile dependency graph failure for pre-commit — @Isotr0py → `nan`
 - [#43283](https://github.com/vllm-project/vllm/pull/43283) [Rust Frontend] Move code from `vllm-frontend-rs` — @BugenZhao → `nan`
 - [#41873](https://github.com/vllm-project/vllm/pull/41873) [Bugfix] Zero stale is_prefilling in padded CUDA graph rows for Mamba — @liulanze → `nan`
-- _…and 161 more_
+- _…and 160 more_
 
 </details>
