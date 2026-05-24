@@ -4,7 +4,7 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (227)
+## PRs merged this window (226)
 
 <details><summary>Click to expand the raw list</summary>
 
@@ -68,6 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#41126](https://github.com/vllm-project/vllm/pull/41126) [Attention] Mamba attention module refactor — @wangxiyuan → `nan`
 - [#43225](https://github.com/vllm-project/vllm/pull/43225) [CPU] Experimentally enable Triton and MRV2 — @bigPYJ1151 → `nan`
 - [#43393](https://github.com/vllm-project/vllm/pull/43393) [Docs] Note image preprocessing difference between qwen_vl_utils and vllm. — @noooop → `nan`
-- _…and 167 more_
+- _…and 166 more_
 
 </details>
