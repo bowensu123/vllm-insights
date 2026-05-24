@@ -4,7 +4,7 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (226)
+## PRs merged this window (225)
 
 <details><summary>Click to expand the raw list</summary>
 
@@ -68,6 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43393](https://github.com/vllm-project/vllm/pull/43393) [Docs] Note image preprocessing difference between qwen_vl_utils and vllm. — @noooop → `nan`
 - [#43360](https://github.com/vllm-project/vllm/pull/43360) Fix the docker build failure in tpu-inference — @mrjunwan-lang → `nan`
 - [#43377](https://github.com/vllm-project/vllm/pull/43377) [BugFix] Fix setuptools-rust dep in requirements files — @njhill → `nan`
-- _…and 166 more_
+- _…and 165 more_
 
 </details>
