@@ -4,10 +4,12 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (225)
+## PRs merged this window (227)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43385](https://github.com/vllm-project/vllm/pull/43385) [ROCm] [DSv4] [Perf] Support DeepSeek v4 MTP — @tjtanaa → `nan`
+- [#43016](https://github.com/vllm-project/vllm/pull/43016) [ROCm][CI] Stabilize 400 error return code for invalid schema inputs — @AndreasKaratzas → `nan`
 - [#43142](https://github.com/vllm-project/vllm/pull/43142) [kv_offload]: Add DSv4 support — @orozery → `nan`
 - [#43494](https://github.com/vllm-project/vllm/pull/43494) [KV Connector] Keep MooncakeStore full hits block-aligned — @Dao007forever → `nan`
 - [#43233](https://github.com/vllm-project/vllm/pull/43233) [Model Runner v2] Force v1 runner for tests — @yewentao256 → `nan`
@@ -66,8 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43393](https://github.com/vllm-project/vllm/pull/43393) [Docs] Note image preprocessing difference between qwen_vl_utils and vllm. — @noooop → `nan`
 - [#43360](https://github.com/vllm-project/vllm/pull/43360) Fix the docker build failure in tpu-inference — @mrjunwan-lang → `nan`
 - [#43377](https://github.com/vllm-project/vllm/pull/43377) [BugFix] Fix setuptools-rust dep in requirements files — @njhill → `nan`
-- [#43321](https://github.com/vllm-project/vllm/pull/43321) Correcting the mock classes for MM GC tests — @wdhongtw → `nan`
-- [#43296](https://github.com/vllm-project/vllm/pull/43296) [CI] Fix "test_awq_load[gemma4-moe-*]" failure — @haosdent → `nan`
-- _…and 165 more_
+- _…and 167 more_
 
 </details>
