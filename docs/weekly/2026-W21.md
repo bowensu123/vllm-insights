@@ -4,10 +4,11 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (225)
+## PRs merged this window (226)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43083](https://github.com/vllm-project/vllm/pull/43083) Tuning script and configs for Triton Mamba SSU kernel — @danisereb → `nan`
 - [#43385](https://github.com/vllm-project/vllm/pull/43385) [ROCm] [DSv4] [Perf] Support DeepSeek v4 MTP — @tjtanaa → `nan`
 - [#43016](https://github.com/vllm-project/vllm/pull/43016) [ROCm][CI] Stabilize 400 error return code for invalid schema inputs — @AndreasKaratzas → `nan`
 - [#43142](https://github.com/vllm-project/vllm/pull/43142) [kv_offload]: Add DSv4 support — @orozery → `nan`
@@ -67,7 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43225](https://github.com/vllm-project/vllm/pull/43225) [CPU] Experimentally enable Triton and MRV2 — @bigPYJ1151 → `nan`
 - [#43393](https://github.com/vllm-project/vllm/pull/43393) [Docs] Note image preprocessing difference between qwen_vl_utils and vllm. — @noooop → `nan`
 - [#43360](https://github.com/vllm-project/vllm/pull/43360) Fix the docker build failure in tpu-inference — @mrjunwan-lang → `nan`
-- [#43377](https://github.com/vllm-project/vllm/pull/43377) [BugFix] Fix setuptools-rust dep in requirements files — @njhill → `nan`
-- _…and 165 more_
+- _…and 166 more_
 
 </details>
