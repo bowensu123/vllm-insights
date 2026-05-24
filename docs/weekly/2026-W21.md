@@ -1,13 +1,15 @@
-# vLLM weekly digest — 2026-05-23 (W21)
+# vLLM weekly digest — 2026-05-24 (W21)
 
 _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-project/vllm)_
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (225)
+## PRs merged this window (227)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43233](https://github.com/vllm-project/vllm/pull/43233) [Model Runner v2] Force v1 runner for tests — @yewentao256 → `nan`
+- [#42691](https://github.com/vllm-project/vllm/pull/42691) [Bugfix] Fix reasoning dropped on streaming boundary deltas — @sfeng33 → `nan`
 - [#43492](https://github.com/vllm-project/vllm/pull/43492) Revert "[Misc] add humming to dependencies" — @mgoin → `nan`
 - [#43486](https://github.com/vllm-project/vllm/pull/43486) [ROCm][Critical] Fix the GDN import bug — @tjtanaa → `nan`
 - [#43392](https://github.com/vllm-project/vllm/pull/43392) [Mooncake] Add metrics for MooncakeStoreConnector operations — @Dao007forever → `nan`
@@ -66,8 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43296](https://github.com/vllm-project/vllm/pull/43296) [CI] Fix "test_awq_load[gemma4-moe-*]" failure — @haosdent → `nan`
 - [#43314](https://github.com/vllm-project/vllm/pull/43314) [CI] Fix test_lora_with_spec_decode on V2 model runner — @haosdent → `nan`
 - [#43213](https://github.com/vllm-project/vllm/pull/43213) [Model] Fix MiniCPM-V 4.6 vit_merger qkv weight loading — @tc-mb → `nan`
-- [#42972](https://github.com/vllm-project/vllm/pull/42972) [Model] Use `AutoWeightsLoader` for Voyage — @yufufi → `nan`
-- [#43064](https://github.com/vllm-project/vllm/pull/43064) [CI] De-flake renderers/test_hf.py::test_resolve_content_format_fallbacks[Qwen/Qwen-VL-string] — @haosdent → `nan`
-- _…and 165 more_
+- _…and 167 more_
 
 </details>
