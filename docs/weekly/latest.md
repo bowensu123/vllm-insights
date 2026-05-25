@@ -4,10 +4,12 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (226)
+## PRs merged this window (224)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#42373](https://github.com/vllm-project/vllm/pull/42373) fix: MoE model using shared routed experts crashes on AMD GPUs — @weizhoublue → `nan`
+- [#43474](https://github.com/vllm-project/vllm/pull/43474) [Kernel] Add mhc_pre_big_fuse_with_norm_tilelang  — @jeejeelee → `nan`
 - [#41735](https://github.com/vllm-project/vllm/pull/41735) File system secondary tier implemented in python — @rshavitt → `nan`
 - [#43083](https://github.com/vllm-project/vllm/pull/43083) Tuning script and configs for Triton Mamba SSU kernel — @danisereb → `nan`
 - [#43385](https://github.com/vllm-project/vllm/pull/43385) [ROCm] [DSv4] [Perf] Support DeepSeek v4 MTP — @tjtanaa → `nan`
@@ -66,8 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43286](https://github.com/vllm-project/vllm/pull/43286) [Misc] Replace assert with proper exceptions for security and validation in pooling — @taneem-ibrahim → `nan`
 - [#42951](https://github.com/vllm-project/vllm/pull/42951) [XPU]feat: add XPU fallback for MoE topk routing and MXFP4 backend — @majian4work → `nan`
 - [#41126](https://github.com/vllm-project/vllm/pull/41126) [Attention] Mamba attention module refactor — @wangxiyuan → `nan`
-- [#43225](https://github.com/vllm-project/vllm/pull/43225) [CPU] Experimentally enable Triton and MRV2 — @bigPYJ1151 → `nan`
-- [#43393](https://github.com/vllm-project/vllm/pull/43393) [Docs] Note image preprocessing difference between qwen_vl_utils and vllm. — @noooop → `nan`
-- _…and 166 more_
+- _…and 164 more_
 
 </details>
