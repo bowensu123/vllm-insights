@@ -4,10 +4,18 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (224)
+## PRs merged this window (216)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43554](https://github.com/vllm-project/vllm/pull/43554) [Kernel] Remove NormGateLinear — @jeejeelee → `nan`
+- [#43583](https://github.com/vllm-project/vllm/pull/43583) [Misc] Print accuracy value for PD tests even on success  — @NickLucche → `nan`
+- [#43281](https://github.com/vllm-project/vllm/pull/43281) [KV Connector] Handle Mooncake finish after preemption — @zhewenl → `nan`
+- [#42933](https://github.com/vllm-project/vllm/pull/42933) Reduce memory usage for granite_speech. — @Yihuki → `nan`
+- [#43568](https://github.com/vllm-project/vllm/pull/43568) [Doc] Add section on escalating stalled contributions — @esmeetu → `nan`
+- [#42296](https://github.com/vllm-project/vllm/pull/42296) [Feat][KVConnector] Support DSV4 in SimpleCPUOffloadBackend — @ivanium → `nan`
+- [#40275](https://github.com/vllm-project/vllm/pull/40275) [Docker] Non-root support for vllm-openai; add opt-in vllm-openai-nonroot target — @TheDuyIT → `nan`
+- [#43552](https://github.com/vllm-project/vllm/pull/43552) [Docs] Reorganize offline inference docs.  — @noooop → `nan`
 - [#42373](https://github.com/vllm-project/vllm/pull/42373) fix: MoE model using shared routed experts crashes on AMD GPUs — @weizhoublue → `nan`
 - [#43474](https://github.com/vllm-project/vllm/pull/43474) [Kernel] Add mhc_pre_big_fuse_with_norm_tilelang  — @jeejeelee → `nan`
 - [#41735](https://github.com/vllm-project/vllm/pull/41735) File system secondary tier implemented in python — @rshavitt → `nan`
@@ -60,14 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43405](https://github.com/vllm-project/vllm/pull/43405) [Rust Frontend] [Refactor] Extract a newtype for utility call ID — @BugenZhao → `nan`
 - [#41234](https://github.com/vllm-project/vllm/pull/41234) [Multimodal] Simplify ViT CUDA graph interfaces — @Isotr0py → `nan`
 - [#42209](https://github.com/vllm-project/vllm/pull/42209) Add NVFP4 MOE support for Deepseek V4. — @sychen52 → `nan`
-- [#43329](https://github.com/vllm-project/vllm/pull/43329) [CI] Fix AMD docker build tests — @haosdent → `nan`
-- [#43110](https://github.com/vllm-project/vllm/pull/43110) [EPLB] Change default EPLB communicator — @ilmarkov → `nan`
-- [#42737](https://github.com/vllm-project/vllm/pull/42737) [LoRA] Reduce memory of 2D weights when EP is set — @jeejeelee → `nan`
-- [#43118](https://github.com/vllm-project/vllm/pull/43118) [BugFix] wire make_empty_intermediate_tensors on AyaVision and Voxtral — @JasonKeyiL → `nan`
-- [#43001](https://github.com/vllm-project/vllm/pull/43001) [Bugfix] Clear P0 mm sender cache on sleep/pause to fix mm_hash desync — @wasnertobias → `nan`
-- [#43286](https://github.com/vllm-project/vllm/pull/43286) [Misc] Replace assert with proper exceptions for security and validation in pooling — @taneem-ibrahim → `nan`
-- [#42951](https://github.com/vllm-project/vllm/pull/42951) [XPU]feat: add XPU fallback for MoE topk routing and MXFP4 backend — @majian4work → `nan`
-- [#41126](https://github.com/vllm-project/vllm/pull/41126) [Attention] Mamba attention module refactor — @wangxiyuan → `nan`
-- _…and 164 more_
+- _…and 156 more_
 
 </details>
