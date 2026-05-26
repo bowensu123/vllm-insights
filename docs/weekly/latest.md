@@ -4,10 +4,25 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (182)
+## PRs merged this window (190)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43635](https://github.com/vllm-project/vllm/pull/43635) [Doc] Add line limit to AGENTS.md — @WoosukKwon → `nan`
+- [#42124](https://github.com/vllm-project/vllm/pull/42124) Add LM head quantization support for ModelOpt — @meenchen → `nan`
+- [#43629](https://github.com/vllm-project/vllm/pull/43629) [ROCm] Remove MegaMoE integration in deepseek v4 — @WoosukKwon → `nan`
+- [#42789](https://github.com/vllm-project/vllm/pull/42789) [MoE Refactor] W4a8 int8 oracle — @bnellnm → `nan`
+- [#42768](https://github.com/vllm-project/vllm/pull/42768) [MoE Refactor] Migrate ModelOptMxFp8FusedMoE to oracle — @bnellnm → `nan`
+- [#43162](https://github.com/vllm-project/vllm/pull/43162) [Feat][DSV4] Fuse q pad into deepseek v4 fused kernel — @zyongye → `nan`
+- [#40990](https://github.com/vllm-project/vllm/pull/40990) [ROCm][CI] Extend ROCm quick reduce coverage — @AndreasKaratzas → `nan`
+- [#43603](https://github.com/vllm-project/vllm/pull/43603) [Docs][ROCm] MoRI-IO Connector Usage Guide — @simondanielsson → `nan`
+- [#43530](https://github.com/vllm-project/vllm/pull/43530) Fix CuPy runtime deps and restore humming — @mmangkad → `nan`
+- [#43646](https://github.com/vllm-project/vllm/pull/43646) [XPU] Fix fused MoE LoRA kernel crash on XPU by using platform-agnos num_compute_units — @chaojun-zhang → `nan`
+- [#38278](https://github.com/vllm-project/vllm/pull/38278) [Model] Use AutoWeightsLoader for InternLM2 — @javierdejesusda → `nan`
+- [#43402](https://github.com/vllm-project/vllm/pull/43402) [Reasoning] [Bugfix] Reject invalid thinking_token_budget values — @linzm1007 → `nan`
+- [#43636](https://github.com/vllm-project/vllm/pull/43636) [Misc] Support interleaved custom image benchmark datasets — @ThibaultCastells → `nan`
+- [#43303](https://github.com/vllm-project/vllm/pull/43303) [Misc][Refactor][ROCm] Convert MoRI-related envvars to extra config args — @simondanielsson → `nan`
+- [#41847](https://github.com/vllm-project/vllm/pull/41847) [KV Transfer] Enable HMA by default for connectors that support it — @chfeng-cs → `nan`
 - [#43482](https://github.com/vllm-project/vllm/pull/43482) [Bugfix] Apply fc_norm in Eagle3DeepseekV2 combine_hidden_states — @yubofredwang → `nan`
 - [#43045](https://github.com/vllm-project/vllm/pull/43045) [chores][log] change registry log from `warning` to `debug` — @ILikeIneine → `nan`
 - [#43584](https://github.com/vllm-project/vllm/pull/43584) Add CuTe DSL sparse compressor support — @Jie-Fang → `nan`
@@ -53,21 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#42143](https://github.com/vllm-project/vllm/pull/42143) fix(eagle3): read norm_before_fc from eagle_config for NVIDIA checkpoint — @FERRARIZHENG → `nan`
 - [#43433](https://github.com/vllm-project/vllm/pull/43433) Keep scheduler alive for delayed KV connector frees — @lucifer1004 → `nan`
 - [#42546](https://github.com/vllm-project/vllm/pull/42546) [ModelOpt] Support Qwen3.5/3.6 VLM quantized prefix mapping — @meenchen → `nan`
-- [#42739](https://github.com/vllm-project/vllm/pull/42739) [Bugfix] Fix native Triton top-k/top-p kernel assumes contiguous logi… — @zhougit86 → `nan`
-- [#43383](https://github.com/vllm-project/vllm/pull/43383) [Misc] Added missing return type annotations to improve mypy and IDE tooling — @taneem-ibrahim → `nan`
-- [#43209](https://github.com/vllm-project/vllm/pull/43209) [7/n] Migrate pos_encoding and norm kernels to libtorch stable ABI (continued) — @cleonard530 → `nan`
-- [#42915](https://github.com/vllm-project/vllm/pull/42915) [XPU] reudce host overhead of XPU MOE — @mayuyuace → `nan`
-- [#42952](https://github.com/vllm-project/vllm/pull/42952) [XPU]feat: enable FP8 block-scaled quantization on XPU — @majian4work → `nan`
-- [#41577](https://github.com/vllm-project/vllm/pull/41577) [ROCm][CI] Fix ROCm LoRA Transformers fallback with full CUDA graphs — @AndreasKaratzas → `nan`
-- [#43051](https://github.com/vllm-project/vllm/pull/43051) [Bugfix] Auto-raise max_num_batched_tokens for prefix-LM multimodal models — @ashwing → `nan`
-- [#43017](https://github.com/vllm-project/vllm/pull/43017) [ROCm][CI] Stabilize Granite tool-use and test URL construction — @AndreasKaratzas → `nan`
-- [#43023](https://github.com/vllm-project/vllm/pull/43023) [ROCm][CI] Stabilize runner teardown between sampler tests — @AndreasKaratzas → `nan`
-- [#42925](https://github.com/vllm-project/vllm/pull/42925) [DSV4] More multi-stream enablement for c4a — @zyongye → `nan`
-- [#42922](https://github.com/vllm-project/vllm/pull/42922) Add `model` to `WeightTransferEngine.__init__` — @SumanthRH → `nan`
-- [#38822](https://github.com/vllm-project/vllm/pull/38822) [Attention] Add head_dim=512 support for FlashInfer trtllm attention backend — @djmmoss → `nan`
-- [#40881](https://github.com/vllm-project/vllm/pull/40881) elastic_ep: stage/commit MoE quant method on reconfigure — @itayalroy → `nan`
-- [#42950](https://github.com/vllm-project/vllm/pull/42950) [XPU]fix: add XPU platform guards to DeepSeek-V4 ops — @majian4work → `nan`
-- [#37374](https://github.com/vllm-project/vllm/pull/37374) [Perf] Optimize hidden state extraction logic — @benchislett → `nan`
-- _…and 122 more_
+- _…and 130 more_
 
 </details>
