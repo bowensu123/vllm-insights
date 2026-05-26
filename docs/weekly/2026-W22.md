@@ -4,10 +4,21 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (183)
+## PRs merged this window (182)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43482](https://github.com/vllm-project/vllm/pull/43482) [Bugfix] Apply fc_norm in Eagle3DeepseekV2 combine_hidden_states — @yubofredwang → `nan`
+- [#43045](https://github.com/vllm-project/vllm/pull/43045) [chores][log] change registry log from `warning` to `debug` — @ILikeIneine → `nan`
+- [#43584](https://github.com/vllm-project/vllm/pull/43584) Add CuTe DSL sparse compressor support — @Jie-Fang → `nan`
+- [#43394](https://github.com/vllm-project/vllm/pull/43394) Upgrade tpu-inference to v0.20.0 — @CienetStingLin → `nan`
+- [#43032](https://github.com/vllm-project/vllm/pull/43032) [CPU] Enable non-divisible GQA for decode workitems in mixed batches — @zhejiangxiaomai → `nan`
+- [#43273](https://github.com/vllm-project/vllm/pull/43273) [GDN] GDN Prefill kernel for SM100 — @gau-nernst → `nan`
+- [#43579](https://github.com/vllm-project/vllm/pull/43579) [Bugfix][Model] Fix GPT2ForSequenceClassification sub-module prefix — @QingZhou-YangHY → `nan`
+- [#43553](https://github.com/vllm-project/vllm/pull/43553) [Frontend] Split the offline inference APIs and utils. — @noooop → `nan`
+- [#43194](https://github.com/vllm-project/vllm/pull/43194) [Bugfix] fix device mismatch in MiniCPM-o-4_5 resampler — @yma11 → `nan`
+- [#42788](https://github.com/vllm-project/vllm/pull/42788) [KV Connector] Propagate MooncakeStore load failures — @Dao007forever → `nan`
+- [#43516](https://github.com/vllm-project/vllm/pull/43516) [KV Connector][Bugfix] MooncakeStore: don't double-apply Eagle prune in load_mask — @Dao007forever → `nan`
 - [#43632](https://github.com/vllm-project/vllm/pull/43632) [DeepSeek V4] Move MegaMoE input prep kernel to nvidia/ops — @WoosukKwon → `nan`
 - [#42290](https://github.com/vllm-project/vllm/pull/42290) [LoRA] Add one shot triton kernel For MoE LoRA — @jeejeelee → `nan`
 - [#43028](https://github.com/vllm-project/vllm/pull/43028) [XPU] Ensure RNG offset alignment with PyTorch requirements in XPU sampler — @chaojun-zhang → `nan`
@@ -57,17 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#40881](https://github.com/vllm-project/vllm/pull/40881) elastic_ep: stage/commit MoE quant method on reconfigure — @itayalroy → `nan`
 - [#42950](https://github.com/vllm-project/vllm/pull/42950) [XPU]fix: add XPU platform guards to DeepSeek-V4 ops — @majian4work → `nan`
 - [#37374](https://github.com/vllm-project/vllm/pull/37374) [Perf] Optimize hidden state extraction logic — @benchislett → `nan`
-- [#42353](https://github.com/vllm-project/vllm/pull/42353) DSv4 fused Q-norm kernel grid refactor — @gnovack → `nan`
-- [#35045](https://github.com/vllm-project/vllm/pull/35045) [Model Runner V2] Support sharing kv cache layers — @njhill → `nan`
-- [#42566](https://github.com/vllm-project/vllm/pull/42566) [Quantization][ModelOpt] W4A16 NVFP4 fused MoE + mixed-precision dispatch — @juhi10071998 → `nan`
-- [#43437](https://github.com/vllm-project/vllm/pull/43437) mhc_post - remove sts & add vectorized copies — @gnovack → `nan`
-- [#36854](https://github.com/vllm-project/vllm/pull/36854) [Bugfix] Clear error message for FP8 torchao quantization on unsupported GPUs — @haosdent → `nan`
-- [#43427](https://github.com/vllm-project/vllm/pull/43427) [Bugfix] Detect wrong libcute_dsl_runtime.so variant in FlashInfer GDN — @arpera → `nan`
-- [#40733](https://github.com/vllm-project/vllm/pull/40733) [RFC][EPLB][#32028] Remove dead torch.accelerator.synchronize() from sync path — @SandishKumarHN → `nan`
-- [#43426](https://github.com/vllm-project/vllm/pull/43426) [Frontend] Simplify AuthenticationMiddleware path extraction — @russellb → `nan`
-- [#43149](https://github.com/vllm-project/vllm/pull/43149) [Refactor] Extract DeepSeek V4 sparse MLA impl into model folder — @zyongye → `nan`
-- [#43371](https://github.com/vllm-project/vllm/pull/43371) [KV Connector] MooncakeStore: don't co-queue save with load to avoid double delayed-free — @Dao007forever → `nan`
-- [#42650](https://github.com/vllm-project/vllm/pull/42650) [Bugfix] Source num_qo_heads from Attention layers in Flashinfer/Triton metadata builders — @zhandaz → `nan`
-- _…and 123 more_
+- _…and 122 more_
 
 </details>
