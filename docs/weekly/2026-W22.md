@@ -4,10 +4,11 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (190)
+## PRs merged this window (187)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43690](https://github.com/vllm-project/vllm/pull/43690) [DSv4] Drop _get_compressed_kv_buffer in DeepseekCompressor — @WoosukKwon → `nan`
 - [#43635](https://github.com/vllm-project/vllm/pull/43635) [Doc] Add line limit to AGENTS.md — @WoosukKwon → `nan`
 - [#42124](https://github.com/vllm-project/vllm/pull/42124) Add LM head quantization support for ModelOpt — @meenchen → `nan`
 - [#43629](https://github.com/vllm-project/vllm/pull/43629) [ROCm] Remove MegaMoE integration in deepseek v4 — @WoosukKwon → `nan`
@@ -67,7 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#39912](https://github.com/vllm-project/vllm/pull/39912) [Kernel] Batch invariant NVFP4 linear using cutlass — @jzakrzew → `nan`
 - [#42143](https://github.com/vllm-project/vllm/pull/42143) fix(eagle3): read norm_before_fc from eagle_config for NVIDIA checkpoint — @FERRARIZHENG → `nan`
 - [#43433](https://github.com/vllm-project/vllm/pull/43433) Keep scheduler alive for delayed KV connector frees — @lucifer1004 → `nan`
-- [#42546](https://github.com/vllm-project/vllm/pull/42546) [ModelOpt] Support Qwen3.5/3.6 VLM quantized prefix mapping — @meenchen → `nan`
-- _…and 130 more_
+- _…and 127 more_
 
 </details>
