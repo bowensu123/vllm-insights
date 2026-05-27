@@ -4,10 +4,11 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (188)
+## PRs merged this window (187)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43785](https://github.com/vllm-project/vllm/pull/43785) Remove Transformers forward/backward compatibility tests — @hmellor → `nan`
 - [#43540](https://github.com/vllm-project/vllm/pull/43540) [Quantization] Fix Humming RoutedExperts import — @fallintoplace → `nan`
 - [#43361](https://github.com/vllm-project/vllm/pull/43361) [8/n] Migrate merge_attn_states, mamba, sampler to torch stable ABI (continued) — @cleonard530 → `nan`
 - [#41751](https://github.com/vllm-project/vllm/pull/41751) [ROCm] mori: add InterNodeV1LL inter-node kernel selection via VLLM_MORI_INTERNODE_KERNEL — @jatseng-ai → `nan`
@@ -67,7 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#42788](https://github.com/vllm-project/vllm/pull/42788) [KV Connector] Propagate MooncakeStore load failures — @Dao007forever → `nan`
 - [#43516](https://github.com/vllm-project/vllm/pull/43516) [KV Connector][Bugfix] MooncakeStore: don't double-apply Eagle prune in load_mask — @Dao007forever → `nan`
 - [#43632](https://github.com/vllm-project/vllm/pull/43632) [DeepSeek V4] Move MegaMoE input prep kernel to nvidia/ops — @WoosukKwon → `nan`
-- [#42290](https://github.com/vllm-project/vllm/pull/42290) [LoRA] Add one shot triton kernel For MoE LoRA — @jeejeelee → `nan`
-- _…and 128 more_
+- _…and 127 more_
 
 </details>
