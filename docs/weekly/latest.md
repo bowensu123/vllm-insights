@@ -4,10 +4,14 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (190)
+## PRs merged this window (189)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43175](https://github.com/vllm-project/vllm/pull/43175) [Frontend] Add MiniCPM5 XML tool call parser — @zhangtao2-1 → `nan`
+- [#43719](https://github.com/vllm-project/vllm/pull/43719) [MRV2][BugFix] Fix KV connector handling in spec decode case — @njhill → `nan`
+- [#39177](https://github.com/vllm-project/vllm/pull/39177) [ROCm][Perf] Expose AITER MoE sorting dispatch policy via env var — @nholmber → `nan`
+- [#42694](https://github.com/vllm-project/vllm/pull/42694) [KVConnector][Mooncake] Wire reset_cache cascade end-to-end — @aoshen02 → `nan`
 - [#43695](https://github.com/vllm-project/vllm/pull/43695) Fix test_aot_compile for torch 2.12 — @angelayi → `nan`
 - [#43710](https://github.com/vllm-project/vllm/pull/43710) [DSv4] Refactor compressor & Fix ROCm compatibility — @WoosukKwon → `nan`
 - [#43358](https://github.com/vllm-project/vllm/pull/43358) [Deprecation] Deprecate functions as scheduled for v0.21.0 — @yewentao256 → `nan`
@@ -64,10 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43474](https://github.com/vllm-project/vllm/pull/43474) [Kernel] Add mhc_pre_big_fuse_with_norm_tilelang  — @jeejeelee → `nan`
 - [#41735](https://github.com/vllm-project/vllm/pull/41735) File system secondary tier implemented in python — @rshavitt → `nan`
 - [#43083](https://github.com/vllm-project/vllm/pull/43083) Tuning script and configs for Triton Mamba SSU kernel — @danisereb → `nan`
-- [#43385](https://github.com/vllm-project/vllm/pull/43385) [ROCm] [DSv4] [Perf] Support DeepSeek v4 MTP — @tjtanaa → `nan`
-- [#43016](https://github.com/vllm-project/vllm/pull/43016) [ROCm][CI] Stabilize 400 error return code for invalid schema inputs — @AndreasKaratzas → `nan`
-- [#43142](https://github.com/vllm-project/vllm/pull/43142) [kv_offload]: Add DSv4 support — @orozery → `nan`
-- [#43494](https://github.com/vllm-project/vllm/pull/43494) [KV Connector] Keep MooncakeStore full hits block-aligned — @Dao007forever → `nan`
-- _…and 130 more_
+- _…and 129 more_
 
 </details>
