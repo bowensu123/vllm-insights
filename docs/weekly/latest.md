@@ -4,10 +4,15 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (189)
+## PRs merged this window (190)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43731](https://github.com/vllm-project/vllm/pull/43731) [Kernel] Enable TritonW4A16LinearKernel as CUDA fallback for non-Marlin-aligned W4A16 shapes — @lucianommartins → `nan`
+- [#43697](https://github.com/vllm-project/vllm/pull/43697) [Docs] Fix MLA prefill backend default docs — @mmangkad → `nan`
+- [#43662](https://github.com/vllm-project/vllm/pull/43662) [Rust Frontend] Align tool parser fallback behavior between streaming & non-streaming paths — @BugenZhao → `nan`
+- [#43550](https://github.com/vllm-project/vllm/pull/43550) [Doc] Add Ascend NPU tab to the quickstart installation guide — @adityasingh2400 → `nan`
+- [#42833](https://github.com/vllm-project/vllm/pull/42833) [ROCm][GPT-OSS] Avoid repeated compile-time `cos_sin_cache.to(bf16)` casts in rotary path — @akii96 → `nan`
 - [#43175](https://github.com/vllm-project/vllm/pull/43175) [Frontend] Add MiniCPM5 XML tool call parser — @zhangtao2-1 → `nan`
 - [#43719](https://github.com/vllm-project/vllm/pull/43719) [MRV2][BugFix] Fix KV connector handling in spec decode case — @njhill → `nan`
 - [#39177](https://github.com/vllm-project/vllm/pull/39177) [ROCm][Perf] Expose AITER MoE sorting dispatch policy via env var — @nholmber → `nan`
@@ -63,11 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43568](https://github.com/vllm-project/vllm/pull/43568) [Doc] Add section on escalating stalled contributions — @esmeetu → `nan`
 - [#42296](https://github.com/vllm-project/vllm/pull/42296) [Feat][KVConnector] Support DSV4 in SimpleCPUOffloadBackend — @ivanium → `nan`
 - [#40275](https://github.com/vllm-project/vllm/pull/40275) [Docker] Non-root support for vllm-openai; add opt-in vllm-openai-nonroot target — @TheDuyIT → `nan`
-- [#43552](https://github.com/vllm-project/vllm/pull/43552) [Docs] Reorganize offline inference docs.  — @noooop → `nan`
-- [#42373](https://github.com/vllm-project/vllm/pull/42373) fix: MoE model using shared routed experts crashes on AMD GPUs — @weizhoublue → `nan`
-- [#43474](https://github.com/vllm-project/vllm/pull/43474) [Kernel] Add mhc_pre_big_fuse_with_norm_tilelang  — @jeejeelee → `nan`
-- [#41735](https://github.com/vllm-project/vllm/pull/41735) File system secondary tier implemented in python — @rshavitt → `nan`
-- [#43083](https://github.com/vllm-project/vllm/pull/43083) Tuning script and configs for Triton Mamba SSU kernel — @danisereb → `nan`
-- _…and 129 more_
+- _…and 130 more_
 
 </details>
