@@ -1,4 +1,4 @@
-# vLLM weekly digest — 2026-05-26 (W22)
+# vLLM weekly digest — 2026-05-27 (W22)
 
 _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-project/vllm)_
 
@@ -8,6 +8,15 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43695](https://github.com/vllm-project/vllm/pull/43695) Fix test_aot_compile for torch 2.12 — @angelayi → `nan`
+- [#43710](https://github.com/vllm-project/vllm/pull/43710) [DSv4] Refactor compressor & Fix ROCm compatibility — @WoosukKwon → `nan`
+- [#43358](https://github.com/vllm-project/vllm/pull/43358) [Deprecation] Deprecate functions as scheduled for v0.21.0 — @yewentao256 → `nan`
+- [#43325](https://github.com/vllm-project/vllm/pull/43325) [MLA][Attention] Add OOT MLA prefill backend registration mechanism — @MatthewBonanni → `nan`
+- [#42095](https://github.com/vllm-project/vllm/pull/42095) [Attention] Make FlexAttention and FlashAttention use num-blocks first layouts — @LucasWilkinson → `nan`
+- [#43677](https://github.com/vllm-project/vllm/pull/43677) [Perf] Optimize Fp8BlockScaledMMLinearKernel input_scale tensor using new_empty() — @xyang16 → `nan`
+- [#43647](https://github.com/vllm-project/vllm/pull/43647) [ROCm][CI] Fix ROCm multimodal Qwen2.5-VL activation compile and Phi4MM ragged image mask handling — @AndreasKaratzas → `nan`
+- [#43582](https://github.com/vllm-project/vllm/pull/43582) [Rust Frontend] Add reasoning/tool parser & renderer roundtrip tests — @BugenZhao → `nan`
+- [#43543](https://github.com/vllm-project/vllm/pull/43543) [Bugfix] Split attention groups by num_heads_q for spec-decode drafts — @lucianommartins → `nan`
 - [#41303](https://github.com/vllm-project/vllm/pull/41303) [ci] Add arm64 ci image — @khluu → `nan`
 - [#42585](https://github.com/vllm-project/vllm/pull/42585) [Bugfix][V1] Fix TOCTOU race causing intermittent `EADDRINUSE` on multi-API-server DP startup — @vadiklyutiy → `nan`
 - [#43627](https://github.com/vllm-project/vllm/pull/43627) [KV Connector] MooncakeStore: drop dead discard_partial_chunks parameter — @zhewenl → `nan`
@@ -59,15 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43016](https://github.com/vllm-project/vllm/pull/43016) [ROCm][CI] Stabilize 400 error return code for invalid schema inputs — @AndreasKaratzas → `nan`
 - [#43142](https://github.com/vllm-project/vllm/pull/43142) [kv_offload]: Add DSv4 support — @orozery → `nan`
 - [#43494](https://github.com/vllm-project/vllm/pull/43494) [KV Connector] Keep MooncakeStore full hits block-aligned — @Dao007forever → `nan`
-- [#43233](https://github.com/vllm-project/vllm/pull/43233) [Model Runner v2] Force v1 runner for tests — @yewentao256 → `nan`
-- [#42691](https://github.com/vllm-project/vllm/pull/42691) [Bugfix] Fix reasoning dropped on streaming boundary deltas — @sfeng33 → `nan`
-- [#43492](https://github.com/vllm-project/vllm/pull/43492) Revert "[Misc] add humming to dependencies" — @mgoin → `nan`
-- [#43486](https://github.com/vllm-project/vllm/pull/43486) [ROCm][Critical] Fix the GDN import bug — @tjtanaa → `nan`
-- [#43392](https://github.com/vllm-project/vllm/pull/43392) [Mooncake] Add metrics for MooncakeStoreConnector operations — @Dao007forever → `nan`
-- [#42680](https://github.com/vllm-project/vllm/pull/42680) [MoE] Migrate W4A8 CT to oracle kernel setup — @bedeks → `nan`
-- [#43489](https://github.com/vllm-project/vllm/pull/43489) [Docs] Fix stale version number in token_classify.md — @fuergaosi233 → `nan`
-- [#43488](https://github.com/vllm-project/vllm/pull/43488) [Docs] Fix stale version number in token_embed.md — @fuergaosi233 → `nan`
-- [#42787](https://github.com/vllm-project/vllm/pull/42787) [MM] Enable FlashInfer metadata support for Qwen2.5-VL vision attention — @huanghua1994 → `nan`
 - _…and 130 more_
 
 </details>
