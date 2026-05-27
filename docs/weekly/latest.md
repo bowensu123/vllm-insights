@@ -4,10 +4,16 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (186)
+## PRs merged this window (188)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43540](https://github.com/vllm-project/vllm/pull/43540) [Quantization] Fix Humming RoutedExperts import — @fallintoplace → `nan`
+- [#43361](https://github.com/vllm-project/vllm/pull/43361) [8/n] Migrate merge_attn_states, mamba, sampler to torch stable ABI (continued) — @cleonard530 → `nan`
+- [#41751](https://github.com/vllm-project/vllm/pull/41751) [ROCm] mori: add InterNodeV1LL inter-node kernel selection via VLLM_MORI_INTERNODE_KERNEL — @jatseng-ai → `nan`
+- [#43791](https://github.com/vllm-project/vllm/pull/43791) Fix early CUDA init — @hmellor → `nan`
+- [#43546](https://github.com/vllm-project/vllm/pull/43546) [Docs] Fix the duplicate doc icon issue — @chunyang-wen → `nan`
+- [#39155](https://github.com/vllm-project/vllm/pull/39155) [BugFix] HFValidationError with cloud storage URIs when HF_HUB_OFFLINE=1 — @sts07142 → `nan`
 - [#43745](https://github.com/vllm-project/vllm/pull/43745) [misc] Bump cutedsl version to 4.5.2 — @zyongye → `nan`
 - [#43401](https://github.com/vllm-project/vllm/pull/43401) [Bugfix] Map reasoning_effort to enable_thinking in chat template kwargs — @ashwing → `nan`
 - [#43731](https://github.com/vllm-project/vllm/pull/43731) [Kernel] Enable TritonW4A16LinearKernel as CUDA fallback for non-Marlin-aligned W4A16 shapes — @lucianommartins → `nan`
@@ -62,12 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43516](https://github.com/vllm-project/vllm/pull/43516) [KV Connector][Bugfix] MooncakeStore: don't double-apply Eagle prune in load_mask — @Dao007forever → `nan`
 - [#43632](https://github.com/vllm-project/vllm/pull/43632) [DeepSeek V4] Move MegaMoE input prep kernel to nvidia/ops — @WoosukKwon → `nan`
 - [#42290](https://github.com/vllm-project/vllm/pull/42290) [LoRA] Add one shot triton kernel For MoE LoRA — @jeejeelee → `nan`
-- [#43028](https://github.com/vllm-project/vllm/pull/43028) [XPU] Ensure RNG offset alignment with PyTorch requirements in XPU sampler — @chaojun-zhang → `nan`
-- [#43554](https://github.com/vllm-project/vllm/pull/43554) [Kernel] Remove NormGateLinear — @jeejeelee → `nan`
-- [#43583](https://github.com/vllm-project/vllm/pull/43583) [Misc] Print accuracy value for PD tests even on success  — @NickLucche → `nan`
-- [#43281](https://github.com/vllm-project/vllm/pull/43281) [KV Connector] Handle Mooncake finish after preemption — @zhewenl → `nan`
-- [#42933](https://github.com/vllm-project/vllm/pull/42933) Reduce memory usage for granite_speech. — @Yihuki → `nan`
-- [#43568](https://github.com/vllm-project/vllm/pull/43568) [Doc] Add section on escalating stalled contributions — @esmeetu → `nan`
-- _…and 126 more_
+- _…and 128 more_
 
 </details>
