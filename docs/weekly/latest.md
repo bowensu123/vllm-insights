@@ -4,10 +4,18 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (189)
+## PRs merged this window (184)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43830](https://github.com/vllm-project/vllm/pull/43830) minor docs: fix incorrect example path — @JINO-ROHIT → `nan`
+- [#42683](https://github.com/vllm-project/vllm/pull/42683) [Bugfix][Frontend] streaming tool-call serializer drops first args chunk when name and args share a DeltaMessage  — @ignaciosica → `nan`
+- [#43808](https://github.com/vllm-project/vllm/pull/43808) [BugFix] Fix blocked reasoning parsing with MRV2 — @njhill → `nan`
+- [#43769](https://github.com/vllm-project/vllm/pull/43769) [Bugfix] Pass `routed_scaling_factor` to FlashInfer TRTLLM BF16 MoE — @gau-nernst → `nan`
+- [#43243](https://github.com/vllm-project/vllm/pull/43243) fix: parse Qwen3 XML JSON arguments first — @he-yufeng → `nan`
+- [#43815](https://github.com/vllm-project/vllm/pull/43815) [ROCm][CI] Stabilize Cargo cache and pre-test image checks — @AndreasKaratzas → `nan`
+- [#43664](https://github.com/vllm-project/vllm/pull/43664) [Misc][Rocm] Remove redundant `AiterUnifiedAttentionBackend` block size log — @NickLucche → `nan`
+- [#43727](https://github.com/vllm-project/vllm/pull/43727) [MoE] Remove inplace fused experts mechanism — @zyongye → `nan`
 - [#43464](https://github.com/vllm-project/vllm/pull/43464) Fix RunAI streamer tensor buffer reuse during weight loading — @bbartels → `nan`
 - [#43469](https://github.com/vllm-project/vllm/pull/43469) [Rust Frontend] Introduce mock engine for benchmark baseline — @BugenZhao → `nan`
 - [#38831](https://github.com/vllm-project/vllm/pull/38831) [ModelRunnerV2][Hybrid model] Support kernel block size in hybrid model — @MengqingCao → `nan`
@@ -60,14 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43530](https://github.com/vllm-project/vllm/pull/43530) Fix CuPy runtime deps and restore humming — @mmangkad → `nan`
 - [#43646](https://github.com/vllm-project/vllm/pull/43646) [XPU] Fix fused MoE LoRA kernel crash on XPU by using platform-agnos num_compute_units — @chaojun-zhang → `nan`
 - [#38278](https://github.com/vllm-project/vllm/pull/38278) [Model] Use AutoWeightsLoader for InternLM2 — @javierdejesusda → `nan`
-- [#43402](https://github.com/vllm-project/vllm/pull/43402) [Reasoning] [Bugfix] Reject invalid thinking_token_budget values — @linzm1007 → `nan`
-- [#43636](https://github.com/vllm-project/vllm/pull/43636) [Misc] Support interleaved custom image benchmark datasets — @ThibaultCastells → `nan`
-- [#43303](https://github.com/vllm-project/vllm/pull/43303) [Misc][Refactor][ROCm] Convert MoRI-related envvars to extra config args — @simondanielsson → `nan`
-- [#41847](https://github.com/vllm-project/vllm/pull/41847) [KV Transfer] Enable HMA by default for connectors that support it — @chfeng-cs → `nan`
-- [#43482](https://github.com/vllm-project/vllm/pull/43482) [Bugfix] Apply fc_norm in Eagle3DeepseekV2 combine_hidden_states — @yubofredwang → `nan`
-- [#43045](https://github.com/vllm-project/vllm/pull/43045) [chores][log] change registry log from `warning` to `debug` — @ILikeIneine → `nan`
-- [#43584](https://github.com/vllm-project/vllm/pull/43584) Add CuTe DSL sparse compressor support — @Jie-Fang → `nan`
-- [#43394](https://github.com/vllm-project/vllm/pull/43394) Upgrade tpu-inference to v0.20.0 — @CienetStingLin → `nan`
-- _…and 129 more_
+- _…and 124 more_
 
 </details>
