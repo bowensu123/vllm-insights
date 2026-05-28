@@ -4,10 +4,21 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (190)
+## PRs merged this window (198)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#40344](https://github.com/vllm-project/vllm/pull/40344) [Bugfix][ROCm] Resolve MoRI connector hangs at high concurrency — @simondanielsson → `nan`
+- [#43746](https://github.com/vllm-project/vllm/pull/43746) [Model Refactoring] Remove torch compile dependency in DSv4 — @WoosukKwon → `nan`
+- [#39983](https://github.com/vllm-project/vllm/pull/39983) Add token-offset based selective offload in OffloadConnector — @ruocco → `nan`
+- [#43667](https://github.com/vllm-project/vllm/pull/43667) [Perf][KDA] Fuse gate softplus, chunk-local cumsum, and RCP_LN2 scaling — @zexplorerhj → `nan`
+- [#43014](https://github.com/vllm-project/vllm/pull/43014) [Perf] Optimize moe permute by pre-allocate buffer, 9~14% kernel performance improvement — @yewentao256 → `nan`
+- [#42965](https://github.com/vllm-project/vllm/pull/42965) [BUGFIX] Multimodal benchmark with MistralTokenizer — @juliendenize → `nan`
+- [#43846](https://github.com/vllm-project/vllm/pull/43846) Fix `OlmoHybridForCausalLM` not initialising — @hmellor → `nan`
+- [#42423](https://github.com/vllm-project/vllm/pull/42423) [EC Connector] Add shutdown API to EC Connector. — @omerpaz95 → `nan`
+- [#41406](https://github.com/vllm-project/vllm/pull/41406) Log dummy DP step in iteration details — @vadiklyutiy → `nan`
+- [#42396](https://github.com/vllm-project/vllm/pull/42396) [Feature] Add structured output and effort support to Anthropic Messages API — @chaunceyjiang → `nan`
+- [#43866](https://github.com/vllm-project/vllm/pull/43866) [CI] Auto-apply `rust` label to relevant PRs — @BugenZhao → `nan`
 - [#43860](https://github.com/vllm-project/vllm/pull/43860) [Bugfix] Fix HyperCLOVAX CI failure after upstream removed remote code — @khluu → `nan`
 - [#43781](https://github.com/vllm-project/vllm/pull/43781) [Bugfix][ROCm] Fix Accuracy Drop in Sparse Indexer on gfx950 — @kliuae → `nan`
 - [#43581](https://github.com/vllm-project/vllm/pull/43581) [Model][Bugfix] Rename weight_mapper to hf_to_vllm_mapper in LlamaNemotronVL pooling models — @jzakrzew → `nan`
@@ -57,17 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#42694](https://github.com/vllm-project/vllm/pull/42694) [KVConnector][Mooncake] Wire reset_cache cascade end-to-end — @aoshen02 → `nan`
 - [#43695](https://github.com/vllm-project/vllm/pull/43695) Fix test_aot_compile for torch 2.12 — @angelayi → `nan`
 - [#43710](https://github.com/vllm-project/vllm/pull/43710) [DSv4] Refactor compressor & Fix ROCm compatibility — @WoosukKwon → `nan`
-- [#43358](https://github.com/vllm-project/vllm/pull/43358) [Deprecation] Deprecate functions as scheduled for v0.21.0 — @yewentao256 → `nan`
-- [#43325](https://github.com/vllm-project/vllm/pull/43325) [MLA][Attention] Add OOT MLA prefill backend registration mechanism — @MatthewBonanni → `nan`
-- [#42095](https://github.com/vllm-project/vllm/pull/42095) [Attention] Make FlexAttention and FlashAttention use num-blocks first layouts — @LucasWilkinson → `nan`
-- [#43677](https://github.com/vllm-project/vllm/pull/43677) [Perf] Optimize Fp8BlockScaledMMLinearKernel input_scale tensor using new_empty() — @xyang16 → `nan`
-- [#43647](https://github.com/vllm-project/vllm/pull/43647) [ROCm][CI] Fix ROCm multimodal Qwen2.5-VL activation compile and Phi4MM ragged image mask handling — @AndreasKaratzas → `nan`
-- [#43582](https://github.com/vllm-project/vllm/pull/43582) [Rust Frontend] Add reasoning/tool parser & renderer roundtrip tests — @BugenZhao → `nan`
-- [#43543](https://github.com/vllm-project/vllm/pull/43543) [Bugfix] Split attention groups by num_heads_q for spec-decode drafts — @lucianommartins → `nan`
-- [#41303](https://github.com/vllm-project/vllm/pull/41303) [ci] Add arm64 ci image — @khluu → `nan`
-- [#42585](https://github.com/vllm-project/vllm/pull/42585) [Bugfix][V1] Fix TOCTOU race causing intermittent `EADDRINUSE` on multi-API-server DP startup — @vadiklyutiy → `nan`
-- [#43627](https://github.com/vllm-project/vllm/pull/43627) [KV Connector] MooncakeStore: drop dead discard_partial_chunks parameter — @zhewenl → `nan`
-- [#43410](https://github.com/vllm-project/vllm/pull/43410) [Kernel] Porting  fuse_minimax_qk_norm  to manual fusion — @jeejeelee → `nan`
-- _…and 130 more_
+- _…and 138 more_
 
 </details>
