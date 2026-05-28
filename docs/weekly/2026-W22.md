@@ -1,13 +1,17 @@
-# vLLM weekly digest — 2026-05-27 (W22)
+# vLLM weekly digest — 2026-05-28 (W22)
 
 _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-project/vllm)_
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (187)
+## PRs merged this window (189)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43464](https://github.com/vllm-project/vllm/pull/43464) Fix RunAI streamer tensor buffer reuse during weight loading — @bbartels → `nan`
+- [#43469](https://github.com/vllm-project/vllm/pull/43469) [Rust Frontend] Introduce mock engine for benchmark baseline — @BugenZhao → `nan`
+- [#38831](https://github.com/vllm-project/vllm/pull/38831) [ModelRunnerV2][Hybrid model] Support kernel block size in hybrid model — @MengqingCao → `nan`
+- [#43599](https://github.com/vllm-project/vllm/pull/43599) [Bugfix][Kernel] TRTLLM NVFP4 MoE chunking — @amitz-nv → `nan`
 - [#43740](https://github.com/vllm-project/vllm/pull/43740) Add @AndreasKaratzas to CODEOWNERS — @AndreasKaratzas → `nan`
 - [#43617](https://github.com/vllm-project/vllm/pull/43617) Fix Qwen3-VL and Qwen3-omni-thinker accuracy degradation from deepstack inputs under torch.compile — @andakai → `nan`
 - [#43733](https://github.com/vllm-project/vllm/pull/43733) [Bugfix][DFlash]allocate the proper number of lookahead slots — @benchislett → `nan`
@@ -64,10 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43045](https://github.com/vllm-project/vllm/pull/43045) [chores][log] change registry log from `warning` to `debug` — @ILikeIneine → `nan`
 - [#43584](https://github.com/vllm-project/vllm/pull/43584) Add CuTe DSL sparse compressor support — @Jie-Fang → `nan`
 - [#43394](https://github.com/vllm-project/vllm/pull/43394) Upgrade tpu-inference to v0.20.0 — @CienetStingLin → `nan`
-- [#43032](https://github.com/vllm-project/vllm/pull/43032) [CPU] Enable non-divisible GQA for decode workitems in mixed batches — @zhejiangxiaomai → `nan`
-- [#43273](https://github.com/vllm-project/vllm/pull/43273) [GDN] GDN Prefill kernel for SM100 — @gau-nernst → `nan`
-- [#43579](https://github.com/vllm-project/vllm/pull/43579) [Bugfix][Model] Fix GPT2ForSequenceClassification sub-module prefix — @QingZhou-YangHY → `nan`
-- [#43553](https://github.com/vllm-project/vllm/pull/43553) [Frontend] Split the offline inference APIs and utils. — @noooop → `nan`
-- _…and 127 more_
+- _…and 129 more_
 
 </details>
