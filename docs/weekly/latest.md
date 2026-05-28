@@ -4,10 +4,14 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (216)
+## PRs merged this window (215)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#41459](https://github.com/vllm-project/vllm/pull/41459) fix(frontend): Add multimodal placeholders to Gemma4 tool message template — @harshaljanjani → `nan`
+- [#43120](https://github.com/vllm-project/vllm/pull/43120) [AMD][CI][BugFix] Fix  Distributed Compile Unit Tests (2xH100-2xMI300) group — @rasmith → `nan`
+- [#43901](https://github.com/vllm-project/vllm/pull/43901) Refactor output filename handling in ci-fetch-log.sh — @mgoin → `nan`
+- [#43445](https://github.com/vllm-project/vllm/pull/43445) [Spec Decode] Allow causal DFlash — @benchislett → `nan`
 - [#43891](https://github.com/vllm-project/vllm/pull/43891) [Model Refactoring] Remove unncessary torch op registration for DSv4 — @WoosukKwon → `nan`
 - [#43205](https://github.com/vllm-project/vllm/pull/43205) [KV Offload] Add per-request offloading policy via `on_new_request` lifecycle hook — @ronensc → `nan`
 - [#43732](https://github.com/vllm-project/vllm/pull/43732) [Core] Cleanup KVConnector handling with PP + fix MRV2  — @njhill → `nan`
@@ -64,10 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43727](https://github.com/vllm-project/vllm/pull/43727) [MoE] Remove inplace fused experts mechanism — @zyongye → `nan`
 - [#43464](https://github.com/vllm-project/vllm/pull/43464) Fix RunAI streamer tensor buffer reuse during weight loading — @bbartels → `nan`
 - [#43469](https://github.com/vllm-project/vllm/pull/43469) [Rust Frontend] Introduce mock engine for benchmark baseline — @BugenZhao → `nan`
-- [#38831](https://github.com/vllm-project/vllm/pull/38831) [ModelRunnerV2][Hybrid model] Support kernel block size in hybrid model — @MengqingCao → `nan`
-- [#43599](https://github.com/vllm-project/vllm/pull/43599) [Bugfix][Kernel] TRTLLM NVFP4 MoE chunking — @amitz-nv → `nan`
-- [#43740](https://github.com/vllm-project/vllm/pull/43740) Add @AndreasKaratzas to CODEOWNERS — @AndreasKaratzas → `nan`
-- [#43617](https://github.com/vllm-project/vllm/pull/43617) Fix Qwen3-VL and Qwen3-omni-thinker accuracy degradation from deepstack inputs under torch.compile — @andakai → `nan`
-- _…and 156 more_
+- _…and 155 more_
 
 </details>
