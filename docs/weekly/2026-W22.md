@@ -4,10 +4,25 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (198)
+## PRs merged this window (212)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43660](https://github.com/vllm-project/vllm/pull/43660) [Attention][AMD] Standardize kv layout to blocks first for AMD — @NickLucche → `nan`
+- [#43330](https://github.com/vllm-project/vllm/pull/43330) Allow native KV cache dtype in Triton cache update — @mikekg → `nan`
+- [#43670](https://github.com/vllm-project/vllm/pull/43670) [Rust Frontend] Optimize multimodal prompt expansion — @ricky-chaoju → `nan`
+- [#43356](https://github.com/vllm-project/vllm/pull/43356) Add Cosmos3 Reasoner model — @MaciejBalaNV → `nan`
+- [#43136](https://github.com/vllm-project/vllm/pull/43136) [ROCm] Bump ROCm to 7.2.3 — @micah-wil → `nan`
+- [#41426](https://github.com/vllm-project/vllm/pull/41426) [XPU][MoE] Add WNA16 oracle backend for GPTQ sym-int4 (xpu_fused_moe) — @jasonboukheir → `nan`
+- [#40687](https://github.com/vllm-project/vllm/pull/40687) [ROCm][Perf] Support N=5 in wvSplitK skinny GEMM kernels for speculative decoding — @mgehre-amd → `nan`
+- [#43870](https://github.com/vllm-project/vllm/pull/43870) [KV Offload] Rename `SecondaryTierManager.get_finished()` to `get_finished_jobs()` — @ronensc → `nan`
+- [#43864](https://github.com/vllm-project/vllm/pull/43864) [Bugfix] Exclude Ray DP from #42585's deferred port allocation — @vadiklyutiy → `nan`
+- [#43803](https://github.com/vllm-project/vllm/pull/43803) [Perf] remove seqlen from Mamba SSD chunk kernels — @Majid-Taheri → `nan`
+- [#43813](https://github.com/vllm-project/vllm/pull/43813) [Bug] Fix `tests/distributed/test_elastic_ep.py  - assert False` — @yewentao256 → `nan`
+- [#43429](https://github.com/vllm-project/vllm/pull/43429) [rust] fix: aggregate `is_sleeping` and `reset_prefix_cache` across DP engines — @willamhou → `nan`
+- [#43850](https://github.com/vllm-project/vllm/pull/43850) [Rust Frontend] Reduce Gemma4 tool parser args scan complexity — @BugenZhao → `nan`
+- [#43872](https://github.com/vllm-project/vllm/pull/43872) [Rust Frontend] Add `hy_v3` tool parser — @BugenZhao → `nan`
+- [#43841](https://github.com/vllm-project/vllm/pull/43841) [CPU] Migrate cpu_awq into awq_marlin — @bigPYJ1151 → `nan`
 - [#40344](https://github.com/vllm-project/vllm/pull/40344) [Bugfix][ROCm] Resolve MoRI connector hangs at high concurrency — @simondanielsson → `nan`
 - [#43746](https://github.com/vllm-project/vllm/pull/43746) [Model Refactoring] Remove torch compile dependency in DSv4 — @WoosukKwon → `nan`
 - [#39983](https://github.com/vllm-project/vllm/pull/39983) Add token-offset based selective offload in OffloadConnector — @ruocco → `nan`
@@ -53,21 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43361](https://github.com/vllm-project/vllm/pull/43361) [8/n] Migrate merge_attn_states, mamba, sampler to torch stable ABI (continued) — @cleonard530 → `nan`
 - [#41751](https://github.com/vllm-project/vllm/pull/41751) [ROCm] mori: add InterNodeV1LL inter-node kernel selection via VLLM_MORI_INTERNODE_KERNEL — @jatseng-ai → `nan`
 - [#43791](https://github.com/vllm-project/vllm/pull/43791) Fix early CUDA init — @hmellor → `nan`
-- [#43546](https://github.com/vllm-project/vllm/pull/43546) [Docs] Fix the duplicate doc icon issue — @chunyang-wen → `nan`
-- [#39155](https://github.com/vllm-project/vllm/pull/39155) [BugFix] HFValidationError with cloud storage URIs when HF_HUB_OFFLINE=1 — @sts07142 → `nan`
-- [#43745](https://github.com/vllm-project/vllm/pull/43745) [misc] Bump cutedsl version to 4.5.2 — @zyongye → `nan`
-- [#43401](https://github.com/vllm-project/vllm/pull/43401) [Bugfix] Map reasoning_effort to enable_thinking in chat template kwargs — @ashwing → `nan`
-- [#43731](https://github.com/vllm-project/vllm/pull/43731) [Kernel] Enable TritonW4A16LinearKernel as CUDA fallback for non-Marlin-aligned W4A16 shapes — @lucianommartins → `nan`
-- [#43697](https://github.com/vllm-project/vllm/pull/43697) [Docs] Fix MLA prefill backend default docs — @mmangkad → `nan`
-- [#43662](https://github.com/vllm-project/vllm/pull/43662) [Rust Frontend] Align tool parser fallback behavior between streaming & non-streaming paths — @BugenZhao → `nan`
-- [#43550](https://github.com/vllm-project/vllm/pull/43550) [Doc] Add Ascend NPU tab to the quickstart installation guide — @adityasingh2400 → `nan`
-- [#42833](https://github.com/vllm-project/vllm/pull/42833) [ROCm][GPT-OSS] Avoid repeated compile-time `cos_sin_cache.to(bf16)` casts in rotary path — @akii96 → `nan`
-- [#43175](https://github.com/vllm-project/vllm/pull/43175) [Frontend] Add MiniCPM5 XML tool call parser — @zhangtao2-1 → `nan`
-- [#43719](https://github.com/vllm-project/vllm/pull/43719) [MRV2][BugFix] Fix KV connector handling in spec decode case — @njhill → `nan`
-- [#39177](https://github.com/vllm-project/vllm/pull/39177) [ROCm][Perf] Expose AITER MoE sorting dispatch policy via env var — @nholmber → `nan`
-- [#42694](https://github.com/vllm-project/vllm/pull/42694) [KVConnector][Mooncake] Wire reset_cache cascade end-to-end — @aoshen02 → `nan`
-- [#43695](https://github.com/vllm-project/vllm/pull/43695) Fix test_aot_compile for torch 2.12 — @angelayi → `nan`
-- [#43710](https://github.com/vllm-project/vllm/pull/43710) [DSv4] Refactor compressor & Fix ROCm compatibility — @WoosukKwon → `nan`
-- _…and 138 more_
+- _…and 152 more_
 
 </details>
