@@ -4,10 +4,23 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (184)
+## PRs merged this window (190)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43860](https://github.com/vllm-project/vllm/pull/43860) [Bugfix] Fix HyperCLOVAX CI failure after upstream removed remote code — @khluu → `nan`
+- [#43781](https://github.com/vllm-project/vllm/pull/43781) [Bugfix][ROCm] Fix Accuracy Drop in Sparse Indexer on gfx950 — @kliuae → `nan`
+- [#43581](https://github.com/vllm-project/vllm/pull/43581) [Model][Bugfix] Rename weight_mapper to hf_to_vllm_mapper in LlamaNemotronVL pooling models — @jzakrzew → `nan`
+- [#42343](https://github.com/vllm-project/vllm/pull/42343) [UX] Increase DP Coordinator startup timeout from 30s to 120s — @wzhao18 → `nan`
+- [#39795](https://github.com/vllm-project/vllm/pull/39795) [Feature] Add support for timed trace replay in `vllm bench serve` to replay Moonshot and Alibaba workload traces — @animeshtrivedi → `nan`
+- [#43824](https://github.com/vllm-project/vllm/pull/43824) [ROCm][CI] Move workload from MI300 to MI325 — @AndreasKaratzas → `nan`
+- [#42879](https://github.com/vllm-project/vllm/pull/42879) [Bugfix] Stream DeepSeek DSML tool-call argument deltas incrementally — @QwertyJack → `nan`
+- [#43183](https://github.com/vllm-project/vllm/pull/43183) Restore `Literal` for `WeightTransferConfig.backend` — @hmellor → `nan`
+- [#43829](https://github.com/vllm-project/vllm/pull/43829) [DSV4] Remove AMD/XPU path in deepseek_v4/nvidia — @WoosukKwon → `nan`
+- [#40923](https://github.com/vllm-project/vllm/pull/40923) [Kernel] Marlin MoE: include SM 12.x in default arch list — @tonyliu312 → `nan`
+- [#43768](https://github.com/vllm-project/vllm/pull/43768) [BugFix] Fix hard-coded timeout for multi-API-server startup — @vadiklyutiy → `nan`
+- [#43600](https://github.com/vllm-project/vllm/pull/43600) change name of fs_python secondary tier to fs. — @rshavitt → `nan`
+- [#43679](https://github.com/vllm-project/vllm/pull/43679) [ROCm][DSV4] Enable Tilelang MHC replacing torch/triton mhc — @tjtanaa → `nan`
 - [#43830](https://github.com/vllm-project/vllm/pull/43830) minor docs: fix incorrect example path — @JINO-ROHIT → `nan`
 - [#42683](https://github.com/vllm-project/vllm/pull/42683) [Bugfix][Frontend] streaming tool-call serializer drops first args chunk when name and args share a DeltaMessage  — @ignaciosica → `nan`
 - [#43808](https://github.com/vllm-project/vllm/pull/43808) [BugFix] Fix blocked reasoning parsing with MRV2 — @njhill → `nan`
@@ -55,19 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#42585](https://github.com/vllm-project/vllm/pull/42585) [Bugfix][V1] Fix TOCTOU race causing intermittent `EADDRINUSE` on multi-API-server DP startup — @vadiklyutiy → `nan`
 - [#43627](https://github.com/vllm-project/vllm/pull/43627) [KV Connector] MooncakeStore: drop dead discard_partial_chunks parameter — @zhewenl → `nan`
 - [#43410](https://github.com/vllm-project/vllm/pull/43410) [Kernel] Porting  fuse_minimax_qk_norm  to manual fusion — @jeejeelee → `nan`
-- [#43709](https://github.com/vllm-project/vllm/pull/43709) [CI] Soft-fail AMD entrypoints mirror tests — @khluu → `nan`
-- [#43690](https://github.com/vllm-project/vllm/pull/43690) [DSv4] Drop _get_compressed_kv_buffer in DeepseekCompressor — @WoosukKwon → `nan`
-- [#43635](https://github.com/vllm-project/vllm/pull/43635) [Doc] Add line limit to AGENTS.md — @WoosukKwon → `nan`
-- [#42124](https://github.com/vllm-project/vllm/pull/42124) Add LM head quantization support for ModelOpt — @meenchen → `nan`
-- [#43629](https://github.com/vllm-project/vllm/pull/43629) [ROCm] Remove MegaMoE integration in deepseek v4 — @WoosukKwon → `nan`
-- [#42789](https://github.com/vllm-project/vllm/pull/42789) [MoE Refactor] W4a8 int8 oracle — @bnellnm → `nan`
-- [#42768](https://github.com/vllm-project/vllm/pull/42768) [MoE Refactor] Migrate ModelOptMxFp8FusedMoE to oracle — @bnellnm → `nan`
-- [#43162](https://github.com/vllm-project/vllm/pull/43162) [Feat][DSV4] Fuse q pad into deepseek v4 fused kernel — @zyongye → `nan`
-- [#40990](https://github.com/vllm-project/vllm/pull/40990) [ROCm][CI] Extend ROCm quick reduce coverage — @AndreasKaratzas → `nan`
-- [#43603](https://github.com/vllm-project/vllm/pull/43603) [Docs][ROCm] MoRI-IO Connector Usage Guide — @simondanielsson → `nan`
-- [#43530](https://github.com/vllm-project/vllm/pull/43530) Fix CuPy runtime deps and restore humming — @mmangkad → `nan`
-- [#43646](https://github.com/vllm-project/vllm/pull/43646) [XPU] Fix fused MoE LoRA kernel crash on XPU by using platform-agnos num_compute_units — @chaojun-zhang → `nan`
-- [#38278](https://github.com/vllm-project/vllm/pull/38278) [Model] Use AutoWeightsLoader for InternLM2 — @javierdejesusda → `nan`
-- _…and 124 more_
+- _…and 130 more_
 
 </details>
