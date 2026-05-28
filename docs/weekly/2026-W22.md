@@ -4,10 +4,17 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (212)
+## PRs merged this window (216)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43891](https://github.com/vllm-project/vllm/pull/43891) [Model Refactoring] Remove unncessary torch op registration for DSv4 — @WoosukKwon → `nan`
+- [#43205](https://github.com/vllm-project/vllm/pull/43205) [KV Offload] Add per-request offloading policy via `on_new_request` lifecycle hook — @ronensc → `nan`
+- [#43732](https://github.com/vllm-project/vllm/pull/43732) [Core] Cleanup KVConnector handling with PP + fix MRV2  — @njhill → `nan`
+- [#42083](https://github.com/vllm-project/vllm/pull/42083) [Feat] Add support for per GPU worker RDMA NIC selection — @rajkiranjoshi → `nan`
+- [#43784](https://github.com/vllm-project/vllm/pull/43784) Deprecate `JAISLMHeadModel` — @hmellor → `nan`
+- [#42796](https://github.com/vllm-project/vllm/pull/42796) [MM][CG] Avoid over-padding Qwen2.5-VL encoder cudagraph window metadata — @huanghua1994 → `nan`
+- [#43331](https://github.com/vllm-project/vllm/pull/43331) [ROCm] Enable the aiter top-k/top-p sampler by default — @JohnQinAMD → `nan`
 - [#43660](https://github.com/vllm-project/vllm/pull/43660) [Attention][AMD] Standardize kv layout to blocks first for AMD — @NickLucche → `nan`
 - [#43330](https://github.com/vllm-project/vllm/pull/43330) Allow native KV cache dtype in Triton cache update — @mikekg → `nan`
 - [#43670](https://github.com/vllm-project/vllm/pull/43670) [Rust Frontend] Optimize multimodal prompt expansion — @ricky-chaoju → `nan`
@@ -61,13 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43599](https://github.com/vllm-project/vllm/pull/43599) [Bugfix][Kernel] TRTLLM NVFP4 MoE chunking — @amitz-nv → `nan`
 - [#43740](https://github.com/vllm-project/vllm/pull/43740) Add @AndreasKaratzas to CODEOWNERS — @AndreasKaratzas → `nan`
 - [#43617](https://github.com/vllm-project/vllm/pull/43617) Fix Qwen3-VL and Qwen3-omni-thinker accuracy degradation from deepstack inputs under torch.compile — @andakai → `nan`
-- [#43733](https://github.com/vllm-project/vllm/pull/43733) [Bugfix][DFlash]allocate the proper number of lookahead slots — @benchislett → `nan`
-- [#43794](https://github.com/vllm-project/vllm/pull/43794) Validate against some config fields being set to 0 — @hmellor → `nan`
-- [#43785](https://github.com/vllm-project/vllm/pull/43785) Remove Transformers forward/backward compatibility tests — @hmellor → `nan`
-- [#43540](https://github.com/vllm-project/vllm/pull/43540) [Quantization] Fix Humming RoutedExperts import — @fallintoplace → `nan`
-- [#43361](https://github.com/vllm-project/vllm/pull/43361) [8/n] Migrate merge_attn_states, mamba, sampler to torch stable ABI (continued) — @cleonard530 → `nan`
-- [#41751](https://github.com/vllm-project/vllm/pull/41751) [ROCm] mori: add InterNodeV1LL inter-node kernel selection via VLLM_MORI_INTERNODE_KERNEL — @jatseng-ai → `nan`
-- [#43791](https://github.com/vllm-project/vllm/pull/43791) Fix early CUDA init — @hmellor → `nan`
-- _…and 152 more_
+- _…and 156 more_
 
 </details>
