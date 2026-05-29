@@ -4,10 +4,18 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (216)
+## PRs merged this window (215)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#42822](https://github.com/vllm-project/vllm/pull/42822) add gelu_tanh to xpu moe backend supported activations — @yintong-lu → `nan`
+- [#43712](https://github.com/vllm-project/vllm/pull/43712) [CI] Separate non-root smoke tests from image build step — @khluu → `nan`
+- [#43717](https://github.com/vllm-project/vllm/pull/43717) [9/n] Migrate attention and cache kernels to torch stable ABI (continued)  — @cleonard530 → `nan`
+- [#43234](https://github.com/vllm-project/vllm/pull/43234) [Refactor] Remove dead code — @yewentao256 → `nan`
+- [#43797](https://github.com/vllm-project/vllm/pull/43797) [kv_offload] Skip decode-phase blocks in CPU offload — @Etelis → `nan`
+- [#43277](https://github.com/vllm-project/vllm/pull/43277) [XPU] add scale transpose to prepare_fp8_moe_layer_for_xpu and bump up kernels — @mayuyuace → `nan`
+- [#42288](https://github.com/vllm-project/vllm/pull/42288) Adjust design around encoder_cudagraph_forward — @wdhongtw → `nan`
+- [#43575](https://github.com/vllm-project/vllm/pull/43575) [feat] add GlmgaProcessor specific logits in `glm4_1v.py` — @JaredforReal → `nan`
 - [#43905](https://github.com/vllm-project/vllm/pull/43905) [DSv4] Move mHC tilelang kernels & Don't use CustomOP in dsv4/nvidia — @WoosukKwon → `nan`
 - [#43270](https://github.com/vllm-project/vllm/pull/43270) [Misc][NUMA] Auto-bind to PCT priority cores on DGX B300 + widen EngineCore across shard NUMA nodes — @vadiklyutiy → `nan`
 - [#43854](https://github.com/vllm-project/vllm/pull/43854) [Rust Frontend] Add `/version` endpoint using engine-reported value — @BugenZhao → `nan`
@@ -60,14 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43183](https://github.com/vllm-project/vllm/pull/43183) Restore `Literal` for `WeightTransferConfig.backend` — @hmellor → `nan`
 - [#43829](https://github.com/vllm-project/vllm/pull/43829) [DSV4] Remove AMD/XPU path in deepseek_v4/nvidia — @WoosukKwon → `nan`
 - [#40923](https://github.com/vllm-project/vllm/pull/40923) [Kernel] Marlin MoE: include SM 12.x in default arch list — @tonyliu312 → `nan`
-- [#43768](https://github.com/vllm-project/vllm/pull/43768) [BugFix] Fix hard-coded timeout for multi-API-server startup — @vadiklyutiy → `nan`
-- [#43600](https://github.com/vllm-project/vllm/pull/43600) change name of fs_python secondary tier to fs. — @rshavitt → `nan`
-- [#43679](https://github.com/vllm-project/vllm/pull/43679) [ROCm][DSV4] Enable Tilelang MHC replacing torch/triton mhc — @tjtanaa → `nan`
-- [#43830](https://github.com/vllm-project/vllm/pull/43830) minor docs: fix incorrect example path — @JINO-ROHIT → `nan`
-- [#42683](https://github.com/vllm-project/vllm/pull/42683) [Bugfix][Frontend] streaming tool-call serializer drops first args chunk when name and args share a DeltaMessage  — @ignaciosica → `nan`
-- [#43808](https://github.com/vllm-project/vllm/pull/43808) [BugFix] Fix blocked reasoning parsing with MRV2 — @njhill → `nan`
-- [#43769](https://github.com/vllm-project/vllm/pull/43769) [Bugfix] Pass `routed_scaling_factor` to FlashInfer TRTLLM BF16 MoE — @gau-nernst → `nan`
-- [#43243](https://github.com/vllm-project/vllm/pull/43243) fix: parse Qwen3 XML JSON arguments first — @he-yufeng → `nan`
-- _…and 156 more_
+- _…and 155 more_
 
 </details>
