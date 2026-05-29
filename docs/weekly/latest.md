@@ -4,10 +4,23 @@ _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-pr
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (215)
+## Releases this window
+
+- [`v0.22.0`](https://github.com/vllm-project/vllm/releases/tag/v0.22.0) — 2026-05-29 10:28 UTC
+
+## PRs merged this window (214)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#37622](https://github.com/vllm-project/vllm/pull/37622) [Bugfix] Fix Step3 pipeline parallel KeyError for residual tensor — @JMonde → `nan`
+- [#43871](https://github.com/vllm-project/vllm/pull/43871) [CI] Nixl+SimpleCPUOffloadingConnector unit tests — @NickLucche → `nan`
+- [#43565](https://github.com/vllm-project/vllm/pull/43565) [XPU] support MTP of gdn attention — @mayuyuace → `nan`
+- [#43703](https://github.com/vllm-project/vllm/pull/43703) [CI][ROCm] Don't skip MoRI-IO Connector tests — @simondanielsson → `nan`
+- [#43947](https://github.com/vllm-project/vllm/pull/43947) [XPU] fix xpu install document triton-xpu version — @jikunshang → `nan`
+- [#43945](https://github.com/vllm-project/vllm/pull/43945) [ROCm][CI] Fix AITER unified attention for encoder-decoder cross-attention — @AndreasKaratzas → `nan`
+- [#43761](https://github.com/vllm-project/vllm/pull/43761) [Frontend]Responses API supports chat_template_kwargs — @chaunceyjiang → `nan`
+- [#43898](https://github.com/vllm-project/vllm/pull/43898) [ROCm][DSv4] Remove device pipeline stall in sparse attention — @kliuae → `nan`
+- [#43633](https://github.com/vllm-project/vllm/pull/43633) [CPU Backend] CPU top-k and top-p sampling kernels using Triton — @tianmu-li → `nan`
 - [#42822](https://github.com/vllm-project/vllm/pull/42822) add gelu_tanh to xpu moe backend supported activations — @yintong-lu → `nan`
 - [#43712](https://github.com/vllm-project/vllm/pull/43712) [CI] Separate non-root smoke tests from image build step — @khluu → `nan`
 - [#43717](https://github.com/vllm-project/vllm/pull/43717) [9/n] Migrate attention and cache kernels to torch stable ABI (continued)  — @cleonard530 → `nan`
@@ -59,15 +72,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#42396](https://github.com/vllm-project/vllm/pull/42396) [Feature] Add structured output and effort support to Anthropic Messages API — @chaunceyjiang → `nan`
 - [#43866](https://github.com/vllm-project/vllm/pull/43866) [CI] Auto-apply `rust` label to relevant PRs — @BugenZhao → `nan`
 - [#43860](https://github.com/vllm-project/vllm/pull/43860) [Bugfix] Fix HyperCLOVAX CI failure after upstream removed remote code — @khluu → `nan`
-- [#43781](https://github.com/vllm-project/vllm/pull/43781) [Bugfix][ROCm] Fix Accuracy Drop in Sparse Indexer on gfx950 — @kliuae → `nan`
-- [#43581](https://github.com/vllm-project/vllm/pull/43581) [Model][Bugfix] Rename weight_mapper to hf_to_vllm_mapper in LlamaNemotronVL pooling models — @jzakrzew → `nan`
-- [#42343](https://github.com/vllm-project/vllm/pull/42343) [UX] Increase DP Coordinator startup timeout from 30s to 120s — @wzhao18 → `nan`
-- [#39795](https://github.com/vllm-project/vllm/pull/39795) [Feature] Add support for timed trace replay in `vllm bench serve` to replay Moonshot and Alibaba workload traces — @animeshtrivedi → `nan`
-- [#43824](https://github.com/vllm-project/vllm/pull/43824) [ROCm][CI] Move workload from MI300 to MI325 — @AndreasKaratzas → `nan`
-- [#42879](https://github.com/vllm-project/vllm/pull/42879) [Bugfix] Stream DeepSeek DSML tool-call argument deltas incrementally — @QwertyJack → `nan`
-- [#43183](https://github.com/vllm-project/vllm/pull/43183) Restore `Literal` for `WeightTransferConfig.backend` — @hmellor → `nan`
-- [#43829](https://github.com/vllm-project/vllm/pull/43829) [DSV4] Remove AMD/XPU path in deepseek_v4/nvidia — @WoosukKwon → `nan`
-- [#40923](https://github.com/vllm-project/vllm/pull/40923) [Kernel] Marlin MoE: include SM 12.x in default arch list — @tonyliu312 → `nan`
-- _…and 155 more_
+- _…and 154 more_
 
 </details>
