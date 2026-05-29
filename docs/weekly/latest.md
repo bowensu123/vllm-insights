@@ -8,10 +8,13 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 
 - [`v0.22.0`](https://github.com/vllm-project/vllm/releases/tag/v0.22.0) — 2026-05-29 10:28 UTC
 
-## PRs merged this window (220)
+## PRs merged this window (217)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43108](https://github.com/vllm-project/vllm/pull/43108) [MoE Refactor] Remove supports_expert_map — @bnellnm → `nan`
+- [#42647](https://github.com/vllm-project/vllm/pull/42647) [MoE Refactor] Migrate MoeWNA16Method quantization to MK oracle — @bnellnm → `nan`
+- [#44009](https://github.com/vllm-project/vllm/pull/44009) [Frontend] Clean up stop_token_ids override for Harmony — @yzong-rh → `nan`
 - [#43346](https://github.com/vllm-project/vllm/pull/43346) [Metrics] Exclude KV transfer tokens from iteration_tokens_total — @tlrmchlsmth → `nan`
 - [#43688](https://github.com/vllm-project/vllm/pull/43688) [Feature] SSL support for dp supervisor — @yewentao256 → `nan`
 - [#44019](https://github.com/vllm-project/vllm/pull/44019) Add @khluu to CODEOWNERS — @khluu → `nan`
@@ -69,9 +72,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43330](https://github.com/vllm-project/vllm/pull/43330) Allow native KV cache dtype in Triton cache update — @mikekg → `v0.22.0`
 - [#43670](https://github.com/vllm-project/vllm/pull/43670) [Rust Frontend] Optimize multimodal prompt expansion — @ricky-chaoju → `v0.22.0`
 - [#43356](https://github.com/vllm-project/vllm/pull/43356) Add Cosmos3 Reasoner model — @MaciejBalaNV → `v0.22.0`
-- [#43136](https://github.com/vllm-project/vllm/pull/43136) [ROCm] Bump ROCm to 7.2.3 — @micah-wil → `v0.22.0`
-- [#41426](https://github.com/vllm-project/vllm/pull/41426) [XPU][MoE] Add WNA16 oracle backend for GPTQ sym-int4 (xpu_fused_moe) — @jasonboukheir → `v0.22.0`
-- [#40687](https://github.com/vllm-project/vllm/pull/40687) [ROCm][Perf] Support N=5 in wvSplitK skinny GEMM kernels for speculative decoding — @mgehre-amd → `v0.22.0`
-- _…and 160 more_
+- _…and 157 more_
 
 </details>
