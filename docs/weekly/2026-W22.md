@@ -12,6 +12,12 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#42553](https://github.com/vllm-project/vllm/pull/42553) [MoE Refactor] WNA16 MoE backend selection into oracle module — @bnellnm → `nan`
+- [#43616](https://github.com/vllm-project/vllm/pull/43616) [Bugfix] Disable allreduce_rms_fusion when pipeline_parallel_size > 1 — @zixi-qi → `nan`
+- [#43818](https://github.com/vllm-project/vllm/pull/43818) [Misc] added unit tests for the core pooling methods — @taneem-ibrahim → `nan`
+- [#43922](https://github.com/vllm-project/vllm/pull/43922) docs: clarify ITL acronym in optimization docs — @chunyang-wen → `nan`
+- [#43857](https://github.com/vllm-project/vllm/pull/43857) Add vLLM library info to Hugging Face Hub requests — @Wauplin → `nan`
+- [#43977](https://github.com/vllm-project/vllm/pull/43977) [Bugfix][CPU] Remove invalid extra deps — @bigPYJ1151 → `nan`
 - [#43972](https://github.com/vllm-project/vllm/pull/43972) Skip docs build if PR doesn't affect docs — @hmellor → `nan`
 - [#43961](https://github.com/vllm-project/vllm/pull/43961) [Bugfix] Corrupted MLA + linear attention — @gau-nernst → `nan`
 - [#42982](https://github.com/vllm-project/vllm/pull/42982) [ROCm][Perf] DSv3.2 MI355X TP4 decode-step orchestration cleanup (3 micro-opts) — @frida-andersson → `nan`
@@ -66,12 +72,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43872](https://github.com/vllm-project/vllm/pull/43872) [Rust Frontend] Add `hy_v3` tool parser — @BugenZhao → `nan`
 - [#43841](https://github.com/vllm-project/vllm/pull/43841) [CPU] Migrate cpu_awq into awq_marlin — @bigPYJ1151 → `nan`
 - [#40344](https://github.com/vllm-project/vllm/pull/40344) [Bugfix][ROCm] Resolve MoRI connector hangs at high concurrency — @simondanielsson → `nan`
-- [#43746](https://github.com/vllm-project/vllm/pull/43746) [Model Refactoring] Remove torch compile dependency in DSv4 — @WoosukKwon → `nan`
-- [#39983](https://github.com/vllm-project/vllm/pull/39983) Add token-offset based selective offload in OffloadConnector — @ruocco → `nan`
-- [#43667](https://github.com/vllm-project/vllm/pull/43667) [Perf][KDA] Fuse gate softplus, chunk-local cumsum, and RCP_LN2 scaling — @zexplorerhj → `nan`
-- [#43014](https://github.com/vllm-project/vllm/pull/43014) [Perf] Optimize moe permute by pre-allocate buffer, 9~14% kernel performance improvement — @yewentao256 → `nan`
-- [#42965](https://github.com/vllm-project/vllm/pull/42965) [BUGFIX] Multimodal benchmark with MistralTokenizer — @juliendenize → `nan`
-- [#43846](https://github.com/vllm-project/vllm/pull/43846) Fix `OlmoHybridForCausalLM` not initialising — @hmellor → `nan`
 - _…and 155 more_
 
 </details>
