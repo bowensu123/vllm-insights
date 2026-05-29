@@ -1,13 +1,18 @@
-# vLLM weekly digest — 2026-05-28 (W22)
+# vLLM weekly digest — 2026-05-29 (W22)
 
 _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-project/vllm)_
 
 _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backend_
 
-## PRs merged this window (215)
+## PRs merged this window (216)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43905](https://github.com/vllm-project/vllm/pull/43905) [DSv4] Move mHC tilelang kernels & Don't use CustomOP in dsv4/nvidia — @WoosukKwon → `nan`
+- [#43270](https://github.com/vllm-project/vllm/pull/43270) [Misc][NUMA] Auto-bind to PCT priority cores on DGX B300 + widen EngineCore across shard NUMA nodes — @vadiklyutiy → `nan`
+- [#43854](https://github.com/vllm-project/vllm/pull/43854) [Rust Frontend] Add `/version` endpoint using engine-reported value — @BugenZhao → `nan`
+- [#43859](https://github.com/vllm-project/vllm/pull/43859) [Model]Support Step-3.7-Flash — @ltd0924 → `nan`
+- [#43925](https://github.com/vllm-project/vllm/pull/43925) [CI] Enable prefix caching in BFCL benchmark — @yzong-rh → `nan`
 - [#41459](https://github.com/vllm-project/vllm/pull/41459) fix(frontend): Add multimodal placeholders to Gemma4 tool message template — @harshaljanjani → `nan`
 - [#43120](https://github.com/vllm-project/vllm/pull/43120) [AMD][CI][BugFix] Fix  Distributed Compile Unit Tests (2xH100-2xMI300) group — @rasmith → `nan`
 - [#43901](https://github.com/vllm-project/vllm/pull/43901) Refactor output filename handling in ci-fetch-log.sh — @mgoin → `nan`
@@ -63,11 +68,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43808](https://github.com/vllm-project/vllm/pull/43808) [BugFix] Fix blocked reasoning parsing with MRV2 — @njhill → `nan`
 - [#43769](https://github.com/vllm-project/vllm/pull/43769) [Bugfix] Pass `routed_scaling_factor` to FlashInfer TRTLLM BF16 MoE — @gau-nernst → `nan`
 - [#43243](https://github.com/vllm-project/vllm/pull/43243) fix: parse Qwen3 XML JSON arguments first — @he-yufeng → `nan`
-- [#43815](https://github.com/vllm-project/vllm/pull/43815) [ROCm][CI] Stabilize Cargo cache and pre-test image checks — @AndreasKaratzas → `nan`
-- [#43664](https://github.com/vllm-project/vllm/pull/43664) [Misc][Rocm] Remove redundant `AiterUnifiedAttentionBackend` block size log — @NickLucche → `nan`
-- [#43727](https://github.com/vllm-project/vllm/pull/43727) [MoE] Remove inplace fused experts mechanism — @zyongye → `nan`
-- [#43464](https://github.com/vllm-project/vllm/pull/43464) Fix RunAI streamer tensor buffer reuse during weight loading — @bbartels → `nan`
-- [#43469](https://github.com/vllm-project/vllm/pull/43469) [Rust Frontend] Introduce mock engine for benchmark baseline — @BugenZhao → `nan`
-- _…and 155 more_
+- _…and 156 more_
 
 </details>
