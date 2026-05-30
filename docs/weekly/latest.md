@@ -8,7 +8,7 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 
 - [`v0.22.0`](https://github.com/vllm-project/vllm/releases/tag/v0.22.0) — 2026-05-29 10:28 UTC
 
-## PRs merged this window (209)
+## PRs merged this window (206)
 
 <details><summary>Click to expand the raw list</summary>
 
@@ -72,6 +72,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43854](https://github.com/vllm-project/vllm/pull/43854) [Rust Frontend] Add `/version` endpoint using engine-reported value — @BugenZhao → `v0.22.0`
 - [#43859](https://github.com/vllm-project/vllm/pull/43859) [Model]Support Step-3.7-Flash — @ltd0924 → `v0.22.0`
 - [#43925](https://github.com/vllm-project/vllm/pull/43925) [CI] Enable prefix caching in BFCL benchmark — @yzong-rh → `v0.22.0`
-- _…and 149 more_
+- _…and 146 more_
 
 </details>
