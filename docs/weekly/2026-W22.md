@@ -8,7 +8,7 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 
 - [`v0.22.0`](https://github.com/vllm-project/vllm/releases/tag/v0.22.0) — 2026-05-29 10:28 UTC
 
-## PRs merged this window (210)
+## PRs merged this window (208)
 
 <details><summary>Click to expand the raw list</summary>
 
@@ -72,6 +72,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43859](https://github.com/vllm-project/vllm/pull/43859) [Model]Support Step-3.7-Flash — @ltd0924 → `v0.22.0`
 - [#43925](https://github.com/vllm-project/vllm/pull/43925) [CI] Enable prefix caching in BFCL benchmark — @yzong-rh → `v0.22.0`
 - [#41459](https://github.com/vllm-project/vllm/pull/41459) fix(frontend): Add multimodal placeholders to Gemma4 tool message template — @harshaljanjani → `v0.22.0`
-- _…and 150 more_
+- _…and 148 more_
 
 </details>
