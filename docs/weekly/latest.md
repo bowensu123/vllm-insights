@@ -8,7 +8,7 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 
 - [`v0.22.0`](https://github.com/vllm-project/vllm/releases/tag/v0.22.0) — 2026-05-29 10:28 UTC
 
-## PRs merged this window (212)
+## PRs merged this window (211)
 
 <details><summary>Click to expand the raw list</summary>
 
@@ -72,6 +72,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43901](https://github.com/vllm-project/vllm/pull/43901) Refactor output filename handling in ci-fetch-log.sh — @mgoin → `v0.22.0`
 - [#43445](https://github.com/vllm-project/vllm/pull/43445) [Spec Decode] Allow causal DFlash — @benchislett → `v0.22.0`
 - [#43891](https://github.com/vllm-project/vllm/pull/43891) [Model Refactoring] Remove unncessary torch op registration for DSv4 — @WoosukKwon → `v0.22.0`
-- _…and 152 more_
+- _…and 151 more_
 
 </details>
