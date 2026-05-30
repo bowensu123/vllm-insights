@@ -8,10 +8,13 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 
 - [`v0.22.0`](https://github.com/vllm-project/vllm/releases/tag/v0.22.0) — 2026-05-29 10:28 UTC
 
-## PRs merged this window (215)
+## PRs merged this window (212)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#42379](https://github.com/vllm-project/vllm/pull/42379) [Bugfix] Fix RMSNorm kernels to multiply in weight's native dtype — @liulanze → `nan`
+- [#43571](https://github.com/vllm-project/vllm/pull/43571) [BugFix][Platform] Fix import vllm.platforms.rocm error on non-CUDA test_gpt_oss.py — @Liangliang-Ma → `nan`
+- [#43881](https://github.com/vllm-project/vllm/pull/43881) [ROCm] cmake: support PYTORCH_FOUND_HIP for torch 2.13 native HIP language support — @nemanjaudovic → `nan`
 - [#44028](https://github.com/vllm-project/vllm/pull/44028) [ROCm][CI] Fix failure in the Phi3V pooling test — @AndreasKaratzas → `nan`
 - [#43997](https://github.com/vllm-project/vllm/pull/43997) [Refactor] Remove dead current_tool_name_sent assignments from tool parsers — @sfeng33 → `nan`
 - [#43792](https://github.com/vllm-project/vllm/pull/43792) offload prompt_embeds decode in render_prompts_async to avoid blocking — @gagandhakrey → `nan`
@@ -69,9 +72,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43901](https://github.com/vllm-project/vllm/pull/43901) Refactor output filename handling in ci-fetch-log.sh — @mgoin → `v0.22.0`
 - [#43445](https://github.com/vllm-project/vllm/pull/43445) [Spec Decode] Allow causal DFlash — @benchislett → `v0.22.0`
 - [#43891](https://github.com/vllm-project/vllm/pull/43891) [Model Refactoring] Remove unncessary torch op registration for DSv4 — @WoosukKwon → `v0.22.0`
-- [#43205](https://github.com/vllm-project/vllm/pull/43205) [KV Offload] Add per-request offloading policy via `on_new_request` lifecycle hook — @ronensc → `v0.22.0`
-- [#43732](https://github.com/vllm-project/vllm/pull/43732) [Core] Cleanup KVConnector handling with PP + fix MRV2  — @njhill → `v0.22.0`
-- [#42083](https://github.com/vllm-project/vllm/pull/42083) [Feat] Add support for per GPU worker RDMA NIC selection — @rajkiranjoshi → `v0.22.0`
-- _…and 155 more_
+- _…and 152 more_
 
 </details>
