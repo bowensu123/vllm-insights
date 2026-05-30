@@ -1,4 +1,4 @@
-# vLLM weekly digest — 2026-05-29 (W22)
+# vLLM weekly digest — 2026-05-30 (W22)
 
 _Window: last 7 days · upstream: [vllm-project/vllm](https://github.com/vllm-project/vllm)_
 
@@ -8,10 +8,13 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 
 - [`v0.22.0`](https://github.com/vllm-project/vllm/releases/tag/v0.22.0) — 2026-05-29 10:28 UTC
 
-## PRs merged this window (217)
+## PRs merged this window (219)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#44033](https://github.com/vllm-project/vllm/pull/44033) Revert "[MoE Refactor] Migrate MoeWNA16Method quantization to MK orac… — @bnellnm → `nan`
+- [#43974](https://github.com/vllm-project/vllm/pull/43974) [CI] Fix smoke test step key to bypass block gate — @khluu → `nan`
+- [#44023](https://github.com/vllm-project/vllm/pull/44023) [CI] Remove duplicate Harmony test coverage — @sfeng33 → `nan`
 - [#43108](https://github.com/vllm-project/vllm/pull/43108) [MoE Refactor] Remove supports_expert_map — @bnellnm → `nan`
 - [#42647](https://github.com/vllm-project/vllm/pull/42647) [MoE Refactor] Migrate MoeWNA16Method quantization to MK oracle — @bnellnm → `nan`
 - [#44009](https://github.com/vllm-project/vllm/pull/44009) [Frontend] Clean up stop_token_ids override for Harmony — @yzong-rh → `nan`
@@ -69,9 +72,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#42796](https://github.com/vllm-project/vllm/pull/42796) [MM][CG] Avoid over-padding Qwen2.5-VL encoder cudagraph window metadata — @huanghua1994 → `v0.22.0`
 - [#43331](https://github.com/vllm-project/vllm/pull/43331) [ROCm] Enable the aiter top-k/top-p sampler by default — @JohnQinAMD → `v0.22.0`
 - [#43660](https://github.com/vllm-project/vllm/pull/43660) [Attention][AMD] Standardize kv layout to blocks first for AMD — @NickLucche → `v0.22.0`
-- [#43330](https://github.com/vllm-project/vllm/pull/43330) Allow native KV cache dtype in Triton cache update — @mikekg → `v0.22.0`
-- [#43670](https://github.com/vllm-project/vllm/pull/43670) [Rust Frontend] Optimize multimodal prompt expansion — @ricky-chaoju → `v0.22.0`
-- [#43356](https://github.com/vllm-project/vllm/pull/43356) Add Cosmos3 Reasoner model — @MaciejBalaNV → `v0.22.0`
-- _…and 157 more_
+- _…and 159 more_
 
 </details>
