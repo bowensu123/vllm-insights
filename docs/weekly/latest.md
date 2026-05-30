@@ -8,10 +8,11 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 
 - [`v0.22.0`](https://github.com/vllm-project/vllm/releases/tag/v0.22.0) — 2026-05-29 10:28 UTC
 
-## PRs merged this window (211)
+## PRs merged this window (212)
 
 <details><summary>Click to expand the raw list</summary>
 
+- [#43817](https://github.com/vllm-project/vllm/pull/43817) [ROCm] Add attention sink support to AITer flash attention backend — @sphinx07 → `nan`
 - [#42379](https://github.com/vllm-project/vllm/pull/42379) [Bugfix] Fix RMSNorm kernels to multiply in weight's native dtype — @liulanze → `nan`
 - [#43571](https://github.com/vllm-project/vllm/pull/43571) [BugFix][Platform] Fix import vllm.platforms.rocm error on non-CUDA test_gpt_oss.py — @Liangliang-Ma → `nan`
 - [#43881](https://github.com/vllm-project/vllm/pull/43881) [ROCm] cmake: support PYTORCH_FOUND_HIP for torch 2.13 native HIP language support — @nemanjaudovic → `nan`
@@ -71,7 +72,6 @@ _LLM digest skipped: RuntimeError: ANTHROPIC_API_KEY not set for anthropic backe
 - [#43120](https://github.com/vllm-project/vllm/pull/43120) [AMD][CI][BugFix] Fix  Distributed Compile Unit Tests (2xH100-2xMI300) group — @rasmith → `v0.22.0`
 - [#43901](https://github.com/vllm-project/vllm/pull/43901) Refactor output filename handling in ci-fetch-log.sh — @mgoin → `v0.22.0`
 - [#43445](https://github.com/vllm-project/vllm/pull/43445) [Spec Decode] Allow causal DFlash — @benchislett → `v0.22.0`
-- [#43891](https://github.com/vllm-project/vllm/pull/43891) [Model Refactoring] Remove unncessary torch op registration for DSv4 — @WoosukKwon → `v0.22.0`
-- _…and 151 more_
+- _…and 152 more_
 
 </details>
